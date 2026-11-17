@@ -15,6 +15,9 @@
 /// from it and distributes shells across them at autosummon time.
 struct PopulationSpawnEntry {
 	std::string profile_name;
+	/// nostalRE: the population_engine.yml profile whose jobs it spawns, when not its own name (JobProfile:), so one
+	/// profile can fill two map lists at different crowds
+	std::string job_profile;
 	std::vector<std::string> towns;
 	int32_t towns_population = 0;
 	int32_t towns_max_per_map = 0; ///< Hard cap per individual town map (0 = no cap).

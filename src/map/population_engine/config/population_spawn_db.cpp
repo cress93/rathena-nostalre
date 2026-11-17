@@ -25,6 +25,11 @@ uint64 PopulationSpawnDatabase::parseBodyNode(const ryml::NodeRef& node)
 	if (!exists)
 		entry = std::make_shared<PopulationSpawnEntry>();
 	entry->profile_name = profile_name;
+	// nostalRE: JobProfile: whose jobs it spawns (default: its own Profile)
+	if (this->nodeExists(node, "JobProfile"))
+		this->asString(node, "JobProfile", entry->job_profile);
+	else if (!exists)
+		entry->job_profile.clear();
 
 	auto parse_map_list = [&](const char* key, std::vector<std::string>& out) {
 		const ryml::NodeRef& seq = node[c4::to_csubstr(key)];

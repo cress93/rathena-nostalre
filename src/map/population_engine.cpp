@@ -1376,7 +1376,9 @@ TIMER_FUNC(population_engine_autosummon_timer)
 		// Resolve Profile -> list of jobs that inherit from it. The pool is the
 		// jobs declared in db/population_engine.yml whose Profile: matches; if
 		// none match, the entry is silently skipped (no jobs to spawn).
-		std::vector<uint16_t> profile_jobs = population_engine_db().jobs_with_profile(se.profile_name);
+		// nostalRE: JobProfile: lets a second entry spawn an existing profile's jobs
+		std::vector<uint16_t> profile_jobs = population_engine_db().jobs_with_profile(
+			se.job_profile.empty() ? se.profile_name : se.job_profile);
 		if (profile_jobs.empty())
 			continue;
 

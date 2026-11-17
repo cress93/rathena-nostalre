@@ -78,6 +78,9 @@ files we do not use. Our changes carry a `nostalRE` comment:
   first class instead, any of the nine (a Knight on a Poring field may be a Mage). It still counts
   as the profile's job (`profile_job`), so the map is not refilled.
   `@populate levels` lists the shells on your map.
+- `db/population_spawn.yml` covers every field and dungeon with monsters: the maps no
+  upstream profile had are in `<profile>_wide` entries, which spawn that profile's jobs
+  (`JobProfile:`, `src/map/population_engine/config/population_spawn_db.cpp`).
 
 ## Building the Android servers
 
