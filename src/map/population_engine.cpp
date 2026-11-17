@@ -1565,7 +1565,7 @@ TIMER_FUNC(population_engine_global_combat_timer)
 	return 0;
 }
 
-/// Respawn timer for mortal shells: fired ~5 s after death to teleport to spawn and revive.
+/// Respawn timer for mortal shells: fired population_engine_respawn_ms after death to teleport to spawn and revive.
 /// Mob-style respawn: full state reset via unit_remove_map (target/timers/SCs) before re-add.
 TIMER_FUNC(population_engine_respawn_shell_timer)
 {
@@ -1652,8 +1652,8 @@ void population_engine_on_shell_death(map_session_data *sd)
 			delete_timer(sd->pop.respawn_timer, population_engine_respawn_shell_timer);
 		sd->pop.respawn_timer = INVALID_TIMER;
 	}
-	// Schedule respawn 5 s after death, matching typical mob respawn feel.
-	sd->pop.respawn_timer = add_timer(gettick() + 5000, population_engine_respawn_shell_timer, sd->id, 0);
+	// nostalRE: population_engine_respawn_ms after death (5 s upstream, the app's settings pick up to 2 min)
+	sd->pop.respawn_timer = add_timer(gettick() + battle_config.population_engine_respawn_ms, population_engine_respawn_shell_timer, sd->id, 0);
 }
 
 void population_engine_on_shell_kills_player(map_session_data *killer_sd, map_session_data *victim_sd)

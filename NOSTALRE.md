@@ -81,6 +81,8 @@ files we do not use. Our changes carry a `nostalRE` comment:
 - `db/population_spawn.yml` covers every field and dungeon with monsters: the maps no
   upstream profile had are in `<profile>_wide` entries, which spawn that profile's jobs
   (`JobProfile:`, `src/map/population_engine/config/population_spawn_db.cpp`).
+- `population_engine_respawn_ms` (5000): how long a dead shell stays down; the app
+  picks 5 s to 2 min.
 
 ## Building the Android servers
 
