@@ -222,6 +222,37 @@ static int32_t population_map_mob_level(int16_t map_id)
 	return level;
 }
 
+/// The class a map's level allows. A second class is at least level 45 (transcendent 60, third 99), so on a
+/// field whose monsters are far below that a Knight would still be level 45 and one-shot everything there;
+/// such a shell comes as a first class (any of them, so low fields see every class), which can be as low as
+/// 10. Towns and maps without monsters take any class. `job_id` itself when it fits.
+static uint16_t population_job_for_map_level(uint16_t job_id, int16_t map_id, uint8_t map_category)
+{
+	if (!battle_config.population_engine_map_levels || map_category == 1)
+		return job_id;
+	const int32_t map_level = population_map_mob_level(map_id);
+	if (map_level <= 0)
+		return job_id;
+	const uint64 mapid = pc_jobid2mapid(job_id);
+	int32_t floor_level;
+	if (mapid & JOBL_THIRD)
+		floor_level = 99;
+	else if (mapid & JOBL_2)
+		floor_level = (mapid & JOBL_UPPER) ? 60 : 45;
+	else
+		return job_id;
+	// the same spread population_roll_map_levels rolls around the map's level
+	const int32_t spread = std::max(3, map_level / 10);
+	if (map_level + spread >= floor_level)
+		return job_id;
+	// any first class, not the job's own: a map whose profiles list only Knights would hold only Swordmen
+	static constexpr uint16_t FIRST_CLASSES[] = {
+		JOB_SWORDMAN, JOB_MAGE, JOB_ARCHER, JOB_ACOLYTE, JOB_MERCHANT, JOB_THIEF,
+		JOB_TAEKWON, JOB_GUNSLINGER, JOB_NINJA,
+	};
+	return FIRST_CLASSES[rnd() % std::size(FIRST_CLASSES)];
+}
+
 /// Roll a shell's base and job level for a map.
 ///
 /// `map_category` 1 (town) and fields or dungeons with no monsters use a broad range:
@@ -700,7 +731,9 @@ static size_t population_engine_count_shells_on_map(int16_t map_id, uint16_t job
     size_t count = 0;
     for (map_session_data* sd : g_population_engine_pcs) {
         if (sd && sd->m == map_id) {
-            if (job_id == UINT16_MAX || sd->status.class_ == job_id)
+            // nostalRE: a shell the map's level made a lower class counts as the job it was spawned for
+            const uint16_t job = sd->pop.profile_job != 0 ? sd->pop.profile_job : static_cast<uint16_t>(sd->status.class_);
+            if (job_id == UINT16_MAX || job == job_id)
                 count++;
         }
     }
@@ -716,7 +749,8 @@ static size_t population_engine_count_shells_on_map_for_profile(
     size_t count = 0;
     for (map_session_data* sd : g_population_engine_pcs) {
         if (!sd || sd->m != map_id) continue;
-        const uint16_t c = static_cast<uint16_t>(sd->status.class_);
+        // nostalRE: as the job it was spawned for (see population_job_for_map_level)
+        const uint16_t c = sd->pop.profile_job != 0 ? sd->pop.profile_job : static_cast<uint16_t>(sd->status.class_);
         for (uint16_t j : jobs) {
             if (c == j) { ++count; break; }
         }
@@ -1074,6 +1108,12 @@ static size_t autosummon_fill_map(int16_t map_id, size_t want, uint16_t job_hint
 		// Use the pre-resolved job/equipment (may have been used to enforce vendor placement).
 		uint16_t job_id = pre_job_id;
 		auto equipment = pre_equipment;
+		// nostalRE: a class the map's level allows; its own profile's gear when it has one
+		job_id = population_job_for_map_level(job_id, map_id, map_category);
+		if (job_id != pre_job_id) {
+			if (auto fitted = population_engine_find_any(job_id))
+				equipment = fitted;
+		}
 
 		// Gender (job-locked wins; then YAML Sex; else random).
 		char sex;
@@ -1140,6 +1180,8 @@ static size_t autosummon_fill_map(int16_t map_id, size_t want, uint16_t job_hint
 			map_base_level, map_job_level);
 
 		if (sd) {
+			if (job_id != pre_job_id)
+				sd->pop.profile_job = pre_job_id;
 			g_population_engine_pcs.push_back(sd);
 			g_population_engine_count++;
 			g_population_engine_stats.total_created++;

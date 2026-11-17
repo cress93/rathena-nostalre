@@ -176,6 +176,7 @@ struct s_population {
 
 	// --- nostalRE: party companion ---
 	uint32 companion_owner = 0;     ///< Shell: account id of the player whose party it joined (0 = plain shell).
+	uint16 profile_job = 0;         ///< Shell: the job its spawn profile asked for, when the map's level gave it a lower one (0 = its own).
 	int32  companion_pending = 0;   ///< Player: id of the shell waiting for this player's new party (0 = none).
 	t_tick companion_next_scan = 0; ///< Shell: when to look for mobs around the owner again.
 

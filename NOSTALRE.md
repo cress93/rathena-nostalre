@@ -74,6 +74,9 @@ files we do not use. Our changes carry a `nostalRE` comment:
   Knight is at least 45); towns and maps with no monsters use 30-85. Stats are
   fitted to what the level has in `db/re/statpoint.yml`, gear to what it can wear.
   Off, and arena and `@populate` shells either way: the profile's range or 99/70.
+  A class the map is too weak for (its floor above the map's level) spawns as its
+  first class instead, any of the nine (a Knight on a Poring field may be a Mage). It still counts
+  as the profile's job (`profile_job`), so the map is not refilled.
   `@populate levels` lists the shells on your map.
 
 ## Building the Android servers
