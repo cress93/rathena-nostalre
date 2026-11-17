@@ -1635,6 +1635,8 @@ TIMER_FUNC(population_engine_respawn_shell_timer)
 	return 0;
 }
 
+static void pop_companion_whisper(map_session_data &to, map_session_data &shell, const char *message);
+
 void population_engine_on_shell_death(map_session_data *sd)
 {
 	if (!sd)
@@ -1644,7 +1646,13 @@ void population_engine_on_shell_death(map_session_data *sd)
 			sd->id, sd->status.name);
 		return;
 	}
-	// Cancel any pending respawn (shell died twice within the 5 s window) — prevents
+	// nostalRE: a party companion that falls is out of the party; it gets up later as a plain shell on its own map
+	if (sd->pop.companion_owner != 0) {
+		if (map_session_data *owner = population_engine_companion_owner(sd))
+			pop_companion_whisper(*owner, *sd, "I'm down... go on without me.");
+		party_companion_remove(*sd, PARTY_MEMBER_WITHDRAW_LEAVE);
+	}
+	// Cancel any pending respawn (shell died twice within the respawn window) — prevents
 	// double-revive and orphaned timer slots.
 	if (sd->pop.respawn_timer != INVALID_TIMER) {
 		const TimerData* td = get_timer(sd->pop.respawn_timer);
@@ -3969,7 +3977,8 @@ bool population_engine_companion_invite(map_session_data &owner, map_session_dat
 	shell.pop.companion_owner = owner.status.account_id;
 	shell.pop.companion_next_scan = 0;
 	shell.pop.behavior = static_cast<uint8_t>(PopulationBehavior::Combat);
-	shell.pop.flags &= ~PSF::Mortal; // a mortal shell's respawn takes it back to its spawn point
+	// nostalRE: mortal, whatever its profile: one that falls leaves the party (population_engine_on_shell_death)
+	shell.pop.flags |= PSF::Mortal;
 	population_shell_target_change(&shell, 0);
 	g_pop_companions.push_back(shell.id);
 

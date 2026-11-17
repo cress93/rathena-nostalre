@@ -83,6 +83,8 @@ files we do not use. Our changes carry a `nostalRE` comment:
   (`JobProfile:`, `src/map/population_engine/config/population_spawn_db.cpp`).
 - `population_engine_respawn_ms` (5000): how long a dead shell stays down; the app
   picks 5 s to 2 min.
+- Party companions are mortal: one that dies whispers its owner, leaves the party
+  and gets up later as a plain shell on its spawn map.
 
 ## Building the Android servers
 
