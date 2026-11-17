@@ -73092,17 +73092,8 @@ Body:
     Weight: 10
     Flags:
       Container: true
-    Trade:
-      NoDrop: true
-      NoTrade: true
-      NoSell: true
-      NoCart: true
-      NoStorage: true
-      NoGuildStorage: true
-      NoMail: true
-      NoAuction: true
     Script: |
-      getgroupitem(IG_PAYMENT_COSTUME_BOX1);
+      callfunc "F_CostumeCrate";
   - Id: 101130
     AegisName: Payment_Costume_Box2
     Name: Confirmed Costume Box
