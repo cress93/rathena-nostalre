@@ -1,0 +1,100 @@
+//===== rAthena Script =======================================
+//= Guild Dungeon Gates
+//===== Description: =========================================
+//= Offline, no guild of real players holds a castle, so the
+//= guild dungeons (their monsters, cards, Siege and Vellum gear)
+//= and the realms' daily missions in them would be out of reach.
+//= A gate beside each realm's Gate Manager takes anyone of level
+//= 70 or more into its guild dungeons for a fee, as Renewal's
+//= investment opens them once a realm's Abyss Gate is funded
+//= (npc/re/guild/invest_main.txt): free for a guild holding one
+//= of the realm's castles. Each gate warps to named maps, so the
+//= navigation's links and the waystones find them.
+//============================================================
+
+// The gate's word and menu: getarg(0) the realm, getarg(1) its castles' prefix ("prtg_cas"), getarg(2) the floors
+// as a menu; the floor picked (1 on), 0 for none. Leaves the dialog closed for the warp
+function	script	F_GDGate	{
+	.@n$ = "[Guild Dungeon Gate]";
+	mes .@n$;
+	if (BaseLevel < 70) {
+		mes "The " + getarg(0) + "'s guild dungeons are no place for the untried.";
+		mes "Come back at level 70.";
+		close2;
+		return 0;
+	}
+	// a guild holding one of the realm's castles goes in free
+	.@fee = 10000;
+	.@gid = getcharid(2);
+	for (.@i = 1; .@i <= 5 && .@gid; .@i++)
+		if (getcastledata(getarg(1) + "0" + .@i, CD_GUILD_ID) == .@gid)
+			.@fee = 0;
+	mes "These are the " + getarg(0) + "'s guild dungeons, kept for the castles' guilds.";
+	if (.@fee)
+		mes "No guild holds them now: for " + callfunc("F_InsertComma", .@fee) + " zeny I let anyone through.";
+	else
+		mes "Your guild holds a castle here: go on through.";
+	next;
+	.@floor = select(getarg(2) + ":Not now");
+	if (.@floor > countstr(getarg(2), ":") + 1) {
+		close2;
+		return 0;
+	}
+	if (Zeny < .@fee) {
+		mes .@n$;
+		mes "You don't have the " + callfunc("F_InsertComma", .@fee) + " zeny.";
+		close2;
+		return 0;
+	}
+	Zeny -= .@fee;
+	close2;
+	return .@floor;
+}
+
+prt_gld,159,94,3	script	Guild Dungeon Gate#prt	4_M_KNIGHT_SILVER,{
+	switch (callfunc("F_GDGate", "Valkyrie Realm", "prtg_cas", "Guild Dungeon 1F:Guild Dungeon 2F:Abyss Dungeon")) {
+	case 1: warp "gld_dun03", 164, 268; end;
+	case 2: warp "gld_dun03_2", 164, 268; end;
+	case 3: warp "gld2_prt", 10, 27; end;
+	}
+	end;
+}
+
+pay_gld,204,187,5	script	Guild Dungeon Gate#pay	4_M_KNIGHT_SILVER,{
+	switch (callfunc("F_GDGate", "Greenwood Lake", "payg_cas", "Guild Dungeon 1F:Guild Dungeon 2F:Abyss Dungeon")) {
+	case 1: warp "gld_dun01", 186, 165; end;
+	case 2: warp "gld_dun01_2", 186, 165; end;
+	case 3: warp "gld2_pay", 33, 112; end;
+	}
+	end;
+}
+
+alde_gld,189,162,3	script	Guild Dungeon Gate#alde	4_M_KNIGHT_SILVER,{
+	switch (callfunc("F_GDGate", "Luina", "aldeg_cas", "Guild Dungeon 1F:Guild Dungeon 2F:Abyss Dungeon")) {
+	case 1: warp "gld_dun02", 32, 122; end;
+	case 2: warp "gld_dun02_2", 32, 122; end;
+	case 3: warp "gld2_ald", 175, 41; end;
+	}
+	end;
+}
+
+gef_fild13,187,204,3	script	Guild Dungeon Gate#gef	4_M_KNIGHT_SILVER,{
+	switch (callfunc("F_GDGate", "Britoniah", "gefg_cas", "Guild Dungeon 1F:Guild Dungeon 2F:Abyss Dungeon")) {
+	case 1: warp "gld_dun04", 39, 258; end;
+	case 2: warp "gld_dun04_2", 39, 258; end;
+	case 3: warp "gld2_gef", 28, 199; end;
+	}
+	end;
+}
+
+aru_gld,94,201,3	script	Guild Dungeon Gate#aru	4_M_KNIGHT_SILVER,{
+	if (callfunc("F_GDGate", "Valfreyja", "arug_cas", "Guild Dungeon") == 1)
+		warp "arug_dun01", 350, 350;
+	end;
+}
+
+sch_gld,268,115,3	script	Guild Dungeon Gate#sch	4_M_KNIGHT_SILVER,{
+	if (callfunc("F_GDGate", "Nidhoggur", "schg_cas", "Guild Dungeon") == 1)
+		warp "schg_dun01", 262, 314;
+	end;
+}
