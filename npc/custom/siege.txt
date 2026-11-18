@@ -1,0 +1,227 @@
+//===== rAthena Script =======================================
+//= Siege Herald: War of Emperium on demand
+//===== Description: =========================================
+//= Offline there is no weekly War of Emperium to wait for:
+//= the scheduled starts (agit_controller, agit_start_se,
+//= agit_start_te) are not loaded, and a Siege Herald in each
+//= realm starts its edition's siege when a guild's master asks,
+//= for an hour or until called off. The castles are rAthena's
+//= own: an empty castle is full of its monsters and spawns its
+//= Emperium when the siege starts (npc/guild/agit_main.txt and
+//= the SE and TE ones), and a castle held brings its treasure
+//= room, guild dungeon, missions and investment with it.
+//=
+//= A castle held is not safe: each siege, raiders storm one of
+//= the edition's castles the guild holds. Every one of them
+//= left when the siege ends, the castle is lost (its own
+//= OnGuildBreak, as when its guild breaks up).
+//============================================================
+
+// The editions: 0 First (the four classic realms), 1 Second (Arunafeltz, Schwarzwald), 2 Training (TE)
+function	script	F_SiegeOn	{
+	switch (getarg(0)) {
+	case 0: return agitcheck();
+	case 1: return agitcheck2();
+	}
+	return agitcheck3();
+}
+
+-	script	SiegeHerald	-1,{
+	.@ed = atoi(strnpcinfo(2));
+	.@n$ = "[Siege Herald]";
+	.@gid = getcharid(2);
+	mes .@n$;
+	if (callfunc("F_SiegeOn", .@ed)) {
+		mes "The " + .edname$[.@ed] + " siege is on: " + ((.end[.@ed] - gettimetick(2) + 59) / 60) + " minutes are left.";
+		if (.raid$[.@ed] != "")
+			mes "Raiders are in " + getcastlename(.raid$[.@ed]) + ": " + mobcount(.raid$[.@ed], strnpcinfo(3) + "::OnRaiderDied") + " left.";
+		next;
+		if (select("Call off the siege:Carry on") == 1 && .@gid && is_guild_leader()) {
+			donpcevent strnpcinfo(3) + "::OnEnd" + .@ed;
+			mes .@n$;
+			mes "So be it: the siege is over.";
+		}
+		close;
+	}
+	mes "The " + .edname$[.@ed] + " castles wait for a guild bold enough to take them.";
+	mes "Declare a siege and their gates are open for an hour: break a castle's Emperium and it is your guild's.";
+	callsub S_Held, .@ed, .@gid;
+	next;
+	switch (select("Declare a siege:How do I found a guild?:Not now")) {
+	case 1:
+		if (!.@gid || !is_guild_leader()) {
+			mes .@n$;
+			mes "Only a guild's master may declare a siege.";
+			close;
+		}
+		close2;
+		// the guild the raid goes after: the one that declared (the raid scales to its master, attached here)
+		.guild[.@ed] = .@gid;
+		callsub S_Start, .@ed;
+		callsub S_Raid, .@ed;
+		end;
+	case 2:
+		mes .@n$;
+		mes "Carry an Emperium and type ^0000ff/guild <name>^000000: the guild is yours, and you its master.";
+		if (countitem(714) == 0) {
+			mes "I have an Emperium for " + callfunc("F_InsertComma", .emp_price) + " zeny.";
+			next;
+			if (select("Buy an Emperium:Not now") == 1) {
+				if (Zeny < .emp_price) {
+					mes .@n$;
+					mes "You don't have the zeny.";
+					close;
+				}
+				Zeny -= .emp_price;
+				getitem 714, 1;
+			}
+		}
+		close;
+	}
+	close;
+
+// the castles of edition getarg(0) guild getarg(1) holds
+S_Held:
+	if (!getarg(1))
+		return;
+	.@k = 0;
+	for (.@i = 0; .@i < getarraysize(getd(".castles" + getarg(0) + "$")); .@i++) {
+		.@c$ = getd(".castles" + getarg(0) + "$[" + .@i + "]");
+		if (getcastledata(.@c$, CD_GUILD_ID) == getarg(1))
+			.@held$[.@k++] = getcastlename(.@c$);
+	}
+	if (.@k)
+		mes "Your guild holds " + implode(.@held$, ", ") + ".";
+	return;
+
+OnInit:
+	setarray .edname$[0], "Rune-Midgarts", "Arunafeltz and Schwarzwald", "Training Edition";
+	setarray .castles0$[0], "aldeg_cas01", "aldeg_cas02", "aldeg_cas03", "aldeg_cas04", "aldeg_cas05",
+		"gefg_cas01", "gefg_cas02", "gefg_cas03", "gefg_cas04", "gefg_cas05",
+		"payg_cas01", "payg_cas02", "payg_cas03", "payg_cas04", "payg_cas05",
+		"prtg_cas01", "prtg_cas02", "prtg_cas03", "prtg_cas04", "prtg_cas05";
+	setarray .castles1$[0], "arug_cas01", "arug_cas02", "arug_cas03", "arug_cas04", "arug_cas05",
+		"schg_cas01", "schg_cas02", "schg_cas03", "schg_cas04", "schg_cas05";
+	setarray .castles2$[0], "te_aldecas1", "te_aldecas2", "te_aldecas3", "te_aldecas4", "te_aldecas5",
+		"te_prtcas01", "te_prtcas02", "te_prtcas03", "te_prtcas04", "te_prtcas05";
+	// each castle's own script (db/re/castle_db.yml), whose OnGuildBreak takes the castle from its guild
+	setarray .npc1$[0], "Manager#arug_cas01", "Manager#arug_cas02", "Manager#arug_cas03", "Manager#arug_cas04", "Manager#arug_cas05",
+		"Manager#schg_cas01", "Manager#schg_cas02", "Manager#schg_cas03", "Manager#schg_cas04", "Manager#schg_cas05";
+	setarray .npc2$[0], "Manager_TE#Glaris", "Manager_TE#Defolty", "Manager_TE#Sorin", "Manager_TE#Bennit", "Manager_TE#W",
+		"Manager_TE#Gaebolg", "Manager_TE#Richard", "Manager_TE#Wigner", "Manager_TE#Heine", "Manager_TE#Nerious";
+	.emp_price = 50000;
+	// how long a siege lasts
+	.length = 3600;
+	end;
+
+OnStart0: callsub S_Start, 0; end;
+OnStart1: callsub S_Start, 1; end;
+OnStart2: callsub S_Start, 2; end;
+S_Start:
+	.@ed = getarg(0);
+	if (callfunc("F_SiegeOn", .@ed))
+		return;
+	.end[.@ed] = gettimetick(2) + .length;
+	switch (.@ed) {
+	case 0: agitstart; break;
+	case 1: agitstart2; break;
+	default: agitstart3; break;
+	}
+	announce "The " + .edname$[.@ed] + " siege has begun: the castles' gates are open for an hour!", bc_all|bc_woe;
+	initnpctimer;
+	return;
+
+OnEnd0: callsub S_End, 0; end;
+OnEnd1: callsub S_End, 1; end;
+OnEnd2: callsub S_End, 2; end;
+S_End:
+	.@ed = getarg(0);
+	if (!callfunc("F_SiegeOn", .@ed))
+		return;
+	switch (.@ed) {
+	case 0: agitend; break;
+	case 1: agitend2; break;
+	default: agitend3; break;
+	}
+	.end[.@ed] = 0;
+	// raiders still in the castle: it falls
+	.@c$ = .raid$[.@ed];
+	.raid$[.@ed] = "";
+	if (.@c$ != "") {
+		.@left = mobcount(.@c$, strnpcinfo(3) + "::OnRaiderDied");
+		killmonster .@c$, strnpcinfo(3) + "::OnRaiderDied";
+		if (.@left > 0 && getcastledata(.@c$, CD_GUILD_ID) == .guild[.@ed]) {
+			announce "Raiders hold " + getcastlename(.@c$) + ": the castle is lost!", bc_all|bc_woe;
+			.@i = 0;
+			while (getd(".castles" + .@ed + "$[" + .@i + "]") != .@c$)
+				.@i++;
+			donpcevent (.@ed ? getd(".npc" + .@ed + "$[" + .@i + "]") : "Agit#" + .@c$) + "::OnGuildBreak";
+		} else if (.@left == 0)
+			announce getcastlename(.@c$) + " held against the raiders.", bc_all|bc_woe;
+	}
+	announce "The " + .edname$[.@ed] + " siege is over.", bc_all|bc_woe;
+	return;
+
+// one of the declaring guild's castles of the edition stormed by raiders, as many as the castle is worth (the
+// declaring master attached)
+S_Raid:
+	.@ed = getarg(0);
+	.@k = 0;
+	for (.@i = 0; .@i < getarraysize(getd(".castles" + .@ed + "$")); .@i++) {
+		.@c$ = getd(".castles" + .@ed + "$[" + .@i + "]");
+		if (getcastledata(.@c$, CD_GUILD_ID) == .guild[.@ed] && .guild[.@ed])
+			.@held$[.@k++] = .@c$;
+	}
+	if (!.@k)
+		return;
+	.@c$ = .@held$[rand(.@k)];
+	.raid$[.@ed] = .@c$;
+	// sturdier the stronger the castle's defense; tougher for a stronger declaring master
+	.@lv = max(1, BaseLevel);
+	.@n = 10 + getcastledata(.@c$, CD_CURRENT_DEFENSE) / 10;
+	setarray .@mob[0], 1163, 1132, 1219, 1276; // Raydric, Khalitzburg, Abysmal Knight, Raydric Archer
+	for (.@i = 0; .@i < .@n; .@i++) {
+		monster .@c$, 0, 0, "Raider", .@mob[.@i % 4], 1, strnpcinfo(3) + "::OnRaiderDied";
+		callsub S_Scale, $@mobid[0], .@lv;
+	}
+	monster .@c$, 0, 0, "Raider Captain", 1268, 1, strnpcinfo(3) + "::OnRaiderDied"; // Bloody Knight
+	callsub S_Scale, $@mobid[0], .@lv + 10;
+	announce "Raiders storm " + getcastlename(.@c$) + "! Drive every one of them out before the siege ends, or the castle falls.", bc_all|bc_woe;
+	return;
+
+// raider getarg(0) at least level getarg(1), its HP grown with it
+S_Scale:
+	.@lv = getunitdata(getarg(0), UMOB_LEVEL);
+	if (getarg(1) <= .@lv)
+		return;
+	.@hp = getunitdata(getarg(0), UMOB_MAXHP) * getarg(1) / max(1, .@lv);
+	setunitdata getarg(0), UMOB_LEVEL, getarg(1);
+	setunitdata getarg(0), UMOB_MAXHP, .@hp;
+	setunitdata getarg(0), UMOB_HP, .@hp;
+	return;
+
+OnRaiderDied:
+	end;
+
+// every minute: a siege whose hour is up ends
+OnTimer60000:
+	for (.@ed = 0; .@ed < 3; .@ed++)
+		if (.end[.@ed] && gettimetick(2) >= .end[.@ed])
+			donpcevent strnpcinfo(3) + "::OnEnd" + .@ed;
+	if (.end[0] || .end[1] || .end[2])
+		initnpctimer;
+	else
+		stopnpctimer;
+	end;
+}
+
+// the heralds, by each realm's Guild Dungeon Gate (npc/custom/guilddungeon.txt): the hidden name's first digit is
+// its edition
+prt_gld,162,94,3	duplicate(SiegeHerald)	Siege Herald#0prt	4_M_KNIGHT_GOLD
+pay_gld,207,187,5	duplicate(SiegeHerald)	Siege Herald#0pay	4_M_KNIGHT_GOLD
+alde_gld,192,162,3	duplicate(SiegeHerald)	Siege Herald#0alde	4_M_KNIGHT_GOLD
+gef_fild13,190,206,3	duplicate(SiegeHerald)	Siege Herald#0gef	4_M_KNIGHT_GOLD
+aru_gld,97,201,3	duplicate(SiegeHerald)	Siege Herald#1aru	4_M_KNIGHT_GOLD
+sch_gld,272,115,3	duplicate(SiegeHerald)	Siege Herald#1sch	4_M_KNIGHT_GOLD
+te_prt_gld,123,149,3	duplicate(SiegeHerald)	Siege Herald#2prt	4_M_KNIGHT_GOLD
+te_alde_gld,231,185,3	duplicate(SiegeHerald)	Siege Herald#2alde	4_M_KNIGHT_GOLD

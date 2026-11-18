@@ -88,6 +88,9 @@ files we do not use. Our changes carry a `nostalRE` comment:
   `#ALBUM_WEIGHT` to max weight (`status_calc_weight`), `#ALBUM_REFINE` percentage points to every refine chance
   that is neither sure nor impossible (`pc_album_refine_chance`: the refine window, refine NPCs'
   `getequippercentrefinery`, Weapon Refine).
+- The weekly War of Emperium schedules (`npc/guild/agit_controller.txt`, `npc/guild2/agit_start_se.txt`,
+  `npc/re/guild3/agit_start_te.txt`) are not loaded: Siege Heralds start sieges on demand (`npc/custom/siege.txt`),
+  and the guild dungeons' Conquering mission (`npc/re/guild/mission_main.txt`) takes any siege, not its day's hour.
 - `instance_mob_hp_rate` 35 and `instance_mob_atk_rate` 60 (`conf/battle/monster.conf`): monsters in an
   instance have that share of their HP and attack (`status_calc_mob_`), so a party's instance is one player's.
 - Party companions are mortal: one that dies whispers its owner, leaves the party

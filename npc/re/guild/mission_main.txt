@@ -80,7 +80,9 @@ function calcjobexp;
 					.@time = atoi(gettimestr("%H%M",4));
 					.@after_time = ((.weekday[.@zoneid] == gettime(4)) && ((.@time > .start_time[.@zoneid]) && (.@time < .end_time[.@zoneid])));
 
-					if(.@siege_check && .@after_time){
+					// nostalRE: a siege is declared at a Siege Herald whenever (npc/custom/siege.txt), not on the
+					// region's day and hour
+					if(.@siege_check){
 						mes .@npcname$;
 						mes "According to ^4d4dffthe number of fortresses that your guild has conquered at this very moment,^000000 I'll give you a reward.";
 						mes "Do you want to check right now? You're aware that ^4d4dffthe number can change even as we speak,^000000 right?";
