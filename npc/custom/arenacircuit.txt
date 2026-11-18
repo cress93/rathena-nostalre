@@ -1,0 +1,158 @@
+//===== rAthena Script =======================================
+//= Arena Circuit: Battleground rewards against AI teams
+//===== Description: =========================================
+//= Offline, no one else queues for a Battleground, so its
+//= badges and KVM points (spent at Erundek and the KVM
+//= Logistics, npc/battleground) would never come. An Arena
+//= Master beside each Maroll Battle Recruiter runs a match
+//= instead: the player and AI teammates against a team of AI
+//= players of the player's level (the population engine's arena
+//= shells, population_arena_start with a level), on the arena
+//= map, until one side is down or the time runs out.
+//=   Bravery match, 3 vs 3: Bravery Badges
+//=   Valor match, 3 vs 3:   Valor Badges
+//=   Krieger brawl, 5 vs 5: KVM Points (kvm_point)
+//= A loss, a draw or a forfeit pays a third of a win. The map
+//= costs nothing on death (nopenalty) and the player is revived
+//= on the way back. One match at a time.
+//============================================================
+
+-	script	ArenaCircuit	-1,{
+	.@n$ = "[Arena Master]";
+	mes .@n$;
+	if (population_arena_jobs() == "") {
+		mes "There's no one around to fight: the world's adventurers are away.";
+		mes "(AI players are turned off in the app's settings.)";
+		close;
+	}
+	callsub S_Stale;
+	if ($@ac_cid) {
+		mes "A match is under way: come back when it's over.";
+		close;
+	}
+	mes "The Battlegrounds need two armies, and the armies went home.";
+	mes "I run matches instead: you and your side against a team of adventurers your own level. The Battleground quartermasters take what I pay.";
+	next;
+	setarray .@pick$[1], "Bravery match (3 vs 3)", "Valor match (3 vs 3)", "Krieger brawl (5 vs 5)";
+	.@m = select(.@pick$[1] + ":" + .@pick$[2] + ":" + .@pick$[3] + ":What do I win?:Not now");
+	if (.@m == 4) {
+		mes .@n$;
+		mes "A win pays " + .win[1] + " Bravery Badges, " + .win[2] + " Valor Badges, or " + .win[3] + " KVM Points in a brawl.";
+		mes "A loss, a draw or running off pays a third of that. You have " + (.length / 60) + " minutes a match.";
+		mes "Erundek in the Battlefield trades badges for gear, the KVM Logistics points.";
+		close;
+	}
+	if (.@m == 5)
+		close;
+	.@size = (.@m == 3) ? 5 : 3;
+	population_arena_stop(.map$);
+	.@foes = population_arena_start(.map$, .@size, .sx, .sy, 0, 1, BaseLevel);
+	if (.@foes <= 0) {
+		mes .@n$;
+		mes "No one answered the call. Try again in a moment.";
+		close;
+	}
+	population_arena_start(.map$, .@size - 1, .ax, .ay, 0, 2, BaseLevel);
+	$@ac_cid = getcharid(0);
+	$@ac_aid = getcharid(3);
+	$@ac_mode = .@m;
+	$@ac_end = gettimetick(2) + .length;
+	getmapxy($@ac_map$, $@ac_x, $@ac_y);
+	mes .@n$;
+	mes .@pick$[.@m] + ": " + .@foes + " against " + .@size + ". Down every one of them!";
+	close2;
+	warp .map$, .px, .py;
+	initnpctimer;
+	end;
+
+// a match whose player is gone (logged out mid-match) is no match
+S_Stale:
+	if ($@ac_cid && !isloggedin($@ac_aid, $@ac_cid))
+		callsub S_Clear;
+	return;
+
+S_Clear:
+	population_arena_stop(.map$);
+	stopnpctimer;
+	$@ac_cid = 0;
+	$@ac_aid = 0;
+	return;
+
+// the result for the attached player: getarg(0) 1 a win, 0 not; the pay, revived and sent back
+S_Result:
+	.@mode = $@ac_mode;
+	.@won = getarg(0);
+	.@back$ = $@ac_map$;
+	.@bx = $@ac_x;
+	.@by = $@ac_y;
+	callsub S_Clear;
+	.@pay = .@won ? .win[.@mode] : .win[.@mode] / 3;
+	if (.@mode == 3) {
+		kvm_point += .@pay;
+		dispbottom "Arena: " + getarg(1) + " " + .@pay + " KVM Points (" + kvm_point + " in all).", 0xFFD54F;
+	} else {
+		getitem (.@mode == 1 ? 7828 : 7829), .@pay;
+		dispbottom "Arena: " + getarg(1) + " " + .@pay + " " + getitemname(.@mode == 1 ? 7828 : 7829) + ".", 0xFFD54F;
+	}
+	if (Hp < 1)
+		recovery 0;
+	warp .@back$, .@bx, .@by;
+	return;
+
+OnPCDieEvent:
+	if (getcharid(0) != $@ac_cid || strcharinfo(3) != .map$)
+		end;
+	callsub S_Result, 0, "Defeat:";
+	end;
+
+// every 2 s: the foes all down, the time up, or the player gone
+OnTimer2000:
+	if (!$@ac_cid) {
+		stopnpctimer;
+		end;
+	}
+	if (!isloggedin($@ac_aid, $@ac_cid)) {
+		callsub S_Clear;
+		end;
+	}
+	if (!attachrid($@ac_aid))
+		end;
+	if (strcharinfo(3) != .map$) {
+		callsub S_Result, 0, "Forfeit:";
+		end;
+	}
+	if (population_arena_alive(.map$, 1) == 0) {
+		callsub S_Result, 1, "Victory!";
+		end;
+	}
+	if (gettimetick(2) >= $@ac_end) {
+		callsub S_Result, 0, "Time's up, a draw:";
+		end;
+	}
+	detachrid;
+	initnpctimer;
+	end;
+
+OnInit:
+	// the arena map (pvp_y_1-2: pvp, nopenalty, nosave) and its sides, as npc/custom/population/arena.txt has them
+	.map$ = "pvp_y_1-2";
+	.sx = 86;
+	.sy = 161;
+	.ax = 169;
+	.ay = 161;
+	.px = 169;
+	.py = 161;
+	// a win's pay: Bravery Badges, Valor Badges, KVM Points
+	setarray .win[1], 8, 8, 80;
+	.length = 360;
+	end;
+}
+
+prontera,121,83,3	duplicate(ArenaCircuit)	Arena Master#prt	4_M_GUNSLINGER
+moc_ruins,77,162,3	duplicate(ArenaCircuit)	Arena Master#moc	4_M_GUNSLINGER
+aldebaran,148,109,3	duplicate(ArenaCircuit)	Arena Master#alde	4_M_GUNSLINGER
+geffen,111,66,3	duplicate(ArenaCircuit)	Arena Master#gef	4_M_GUNSLINGER
+payon,189,102,3	duplicate(ArenaCircuit)	Arena Master#pay	4_M_GUNSLINGER
+lighthalzen,155,86,5	duplicate(ArenaCircuit)	Arena Master#lhz	4_M_GUNSLINGER
+rachel,151,138,3	duplicate(ArenaCircuit)	Arena Master#ra	4_M_GUNSLINGER
+morocc,147,82,3	duplicate(ArenaCircuit)	Arena Master#moc2	4_M_GUNSLINGER

@@ -95,10 +95,13 @@ void population_engine_on_global_chat_mention(map_session_data *from_sd, const c
 /// map_search_freecell validates walkability so shells never appear on blocked cells.
 /// Optional job_override forces every shell to use that JOB_ id (0 = use ArenaJobPool / built-in mix).
 /// team_id: 1 = enemy shells (target real players), 2 = allied shells (target team-1 shells).
+/// nostalRE: level >= 0 makes every shell that base level (its job level, stats and gear to match).
 /// Returns total shells spawned (0 on error).
 int  population_engine_arena_start(const char* map_name, int shell_count,
                                    int spawn_x = 0, int spawn_y = 0,
-                                   uint16_t job_override = 0, int team_id = 1);
+                                   uint16_t job_override = 0, int team_id = 1, int level = -1);
+/// nostalRE: the arena shells of `team_id` alive on `map_name` (npc/custom/arenacircuit.txt counts them)
+int  population_engine_arena_alive(const char* map_name, int team_id);
 /// Arena PvP: release all arena shells on `map_name`.
 void population_engine_arena_stop(const char* map_name);
 

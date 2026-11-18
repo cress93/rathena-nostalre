@@ -16,7 +16,8 @@ BUILDIN_DEF(setbullet, "?"),
 BUILDIN_DEF(setkunai, "?"),
 
 // Population engine arena
-BUILDIN_DEF(population_arena_start, "si????"),
+BUILDIN_DEF(population_arena_start, "si?????"),
+BUILDIN_DEF(population_arena_alive, "si"),
 BUILDIN_DEF(population_arena_stop,  "s"),
 BUILDIN_DEF(population_arena_jobs,  ""),
 BUILDIN_DEF(capturemonster, "i"), // nostalRE: capture balls

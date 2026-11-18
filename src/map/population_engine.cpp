@@ -4242,7 +4242,7 @@ void do_final_population_engine() {
 /// Returns the number of shells actually spawned (0 on error).
 int population_engine_arena_start(const char* map_name, int shell_count,
                                    int spawn_x, int spawn_y,
-                                   uint16_t job_override, int team_id)
+                                   uint16_t job_override, int team_id, int level)
 {
 	if (!map_name || shell_count <= 0 || shell_count > 25)
 		return 0;
@@ -4434,10 +4434,28 @@ int population_engine_arena_start(const char* map_name, int shell_count,
 		// Arena shells are always mortal — force the Mortal flag.
 		const uint32_t arena_flags = (pop_cfg ? pop_cfg->flags : 0u) | PSF::Mortal | PSF::CombatActive;
 
+		// nostalRE: a level asked for, within the job's, and the job level as far along as the base level is
+		int16_t base_level = -1, job_level = -1;
+		if (level >= 0) {
+			const int32_t max_base = std::max<int32_t>(1, job_db.get_maxBaseLv(job_id));
+			const int32_t max_job = std::max<int32_t>(1, job_db.get_maxJobLv(job_id));
+			base_level = static_cast<int16_t>(cap_value(level, 1, max_base));
+			job_level = static_cast<int16_t>(cap_value(max_job * base_level / max_base, 1, max_job));
+			if (equipment) {
+				weapon = population_pick_gear(equipment->weapon_pool, base_level);
+				shield = population_pick_gear(equipment->shield_pool, base_level);
+				head_top = population_pick_gear(equipment->head_top_pool, base_level);
+				head_mid = population_pick_gear(equipment->head_mid_pool, base_level);
+				head_bottom = population_pick_gear(equipment->head_bottom_pool, base_level);
+				garment = population_pick_gear(equipment->garment_pool, base_level);
+			}
+		}
+
 		map_session_data* sd = population_engine_spawn_shell(
 			mid, x, y, index, job_id, sex, hair_style,
 			hair_color, weapon, shield, head_top, head_mid, head_bottom,
-			0, cloth_color, garment, init_script, skip_arrow, pop_cfg, 3 /*dungeon category*/, pop_src);
+			0, cloth_color, garment, init_script, skip_arrow, pop_cfg, 3 /*dungeon category*/, pop_src,
+			base_level, job_level);
 
 		if (sd) {
 			// Override flags to ensure mortal and set arena team marker.
@@ -4457,6 +4475,20 @@ int population_engine_arena_start(const char* map_name, int shell_count,
 		}
 	}
 	return spawned;
+}
+
+/// nostalRE: the arena shells of `team_id` alive on `map_name`
+int population_engine_arena_alive(const char* map_name, int team_id)
+{
+	const int16 mid = map_name ? map_mapname2mapid(map_name) : -1;
+	if (mid < 0)
+		return 0;
+	int alive = 0;
+	for (map_session_data* sd : g_population_engine_pcs) {
+		if (sd && sd->m == mid && sd->pop.arena_team == team_id && !pc_isdead(sd))
+			++alive;
+	}
+	return alive;
 }
 
 /// Remove all arena shells from `map_name` and release them.

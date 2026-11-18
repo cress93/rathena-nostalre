@@ -88,6 +88,9 @@ files we do not use. Our changes carry a `nostalRE` comment:
   `#ALBUM_WEIGHT` to max weight (`status_calc_weight`), `#ALBUM_REFINE` percentage points to every refine chance
   that is neither sure nor impossible (`pc_album_refine_chance`: the refine window, refine NPCs'
   `getequippercentrefinery`, Weapon Refine).
+- `population_arena_start` takes an optional eighth argument, the shells' base level (their job level, stats and
+  gear follow it), and `population_arena_alive("<map>", <team>)` counts a team's living arena shells: the Arena
+  Circuit (`npc/custom/arenacircuit.txt`) plays Battleground matches against AI teams with them.
 - The weekly War of Emperium schedules (`npc/guild/agit_controller.txt`, `npc/guild2/agit_start_se.txt`,
   `npc/re/guild3/agit_start_te.txt`) are not loaded: Siege Heralds start sieges on demand (`npc/custom/siege.txt`),
   and the guild dungeons' Conquering mission (`npc/re/guild/mission_main.txt`) takes any siege, not its day's hour.

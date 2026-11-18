@@ -210,10 +210,26 @@ BUILDIN_FUNC(population_arena_start)
 	}
 	// team_id: 1 = enemy shells (target real players), 2 = allied shells (target team-1 shells).
 	const int team_arg = script_hasdata(st, 7) ? script_getnum(st, 7) : 1;
+	// nostalRE: the shells' base level, -1 for the PvP database's own
+	const int level_arg = script_hasdata(st, 8) ? script_getnum(st, 8) : -1;
 
 	const int spawned = population_engine_arena_start(map_name, shell_count, sx, sy,
-		static_cast<uint16_t>(job_arg), team_arg);
+		static_cast<uint16_t>(job_arg), team_arg, level_arg);
 	script_pushint(st, spawned);
+	return SCRIPT_CMD_SUCCESS;
+}
+
+/*==========================================
+ * nostalRE: population_arena_alive("<map>",<team>)
+ *   The arena shells of team <team> (1 or 2) alive on <map>.
+ *------------------------------------------*/
+BUILDIN_FUNC(population_arena_alive)
+{
+	if (!battle_config.population_engine_enable) {
+		script_pushint(st, 0);
+		return SCRIPT_CMD_SUCCESS;
+	}
+	script_pushint(st, population_engine_arena_alive(script_getstr(st, 2), script_getnum(st, 3)));
 	return SCRIPT_CMD_SUCCESS;
 }
 
