@@ -1,0 +1,162 @@
+//===== rAthena Script =======================================
+//= Kafra teleport network
+//===== Description: =========================================
+//= nostalRE: a character's teleport destinations are the ones
+//= it has found, for good: a town by talking to its Kafra,
+//= Zonda or Cool Event Corp. staff (or, where it has none, by
+//= walking in), a dungeon by walking up to the waystone at its
+//= entrance. Every Kafra, Zonda, Cool Event Corp. teleport,
+//= waystone and Warper takes it to any of them, for a fee (a
+//= Free Ticket for Kafra Transportation instead). The places
+//= are generated: npc/custom/waypoint_points.txt.
+//= A new character starts with Prontera and its save town.
+//============================================================
+
+// The place a key is ("prontera", "prt_sewb1"; an Izlude channel is Izlude), -1 for none
+function	script	F_WayIndex	{
+	.@key$ = getarg(0);
+	if (compare(.@key$, "izlude_"))
+		.@key$ = "izlude";
+	.@n = getarraysize($@way_key$);
+	for (.@i = 0; .@i < .@n; .@i++)
+		if ($@way_key$[.@i] == .@key$)
+			return .@i;
+	return -1;
+}
+
+// Finds place getarg(0) for this character; getarg(1) 1 says nothing. 1 when it is new
+function	script	F_WayUnlock	{
+	.@i = callfunc("F_WayIndex", getarg(0));
+	if (.@i < 0 || getd("WP_" + $@way_key$[.@i]))
+		return 0;
+	setd "WP_" + $@way_key$[.@i], 1;
+	if (!getarg(1, 0))
+		dispbottom "New teleport destination: " + $@way_name$[.@i] + ". Any Kafra can take you there now.";
+	return 1;
+}
+
+// From a Kafra (or Zonda, Cool Event Corp.): the town it stands in
+function	script	F_WayUnlockHere	{
+	callfunc "F_WayUnlock", strnpcinfo(4);
+	return;
+}
+
+// The teleport menu, headed getarg(0) ("[Kafra Employee]"): the towns or the dungeon entrances found, each with its
+// fee; it ends the conversation
+function	script	F_WayMenu	{
+	.@title$ = getarg(0);
+	.@total = getarraysize($@way_key$);
+	for (.@i = 0; .@i < .@total; .@i++)
+		if (getd("WP_" + $@way_key$[.@i]))
+			.@found++;
+	mes .@title$;
+	mes "Where would you like to go?";
+	mes "^777777You have found " + .@found + " of " + .@total + " destinations.^000000";
+	next;
+	.@kind = select("Towns:Dungeon entrances:Cancel") - 1;
+	if (.@kind == 2)
+		close3;
+	for (.@i = 0; .@i < .@total; .@i++) {
+		if ($@way_dungeon[.@i] != .@kind || !getd("WP_" + $@way_key$[.@i]))
+			continue;
+		.@pick[.@n] = .@i;
+		.@menu$ += $@way_name$[.@i] + " - " + callfunc("F_InsertComma", $@way_fee[.@i]) + " z:";
+		.@n++;
+	}
+	if (!.@n) {
+		mes .@title$;
+		if (.@kind)
+			mes "You have not found any dungeon entrances yet. Walk up to the waystone by a dungeon's entrance to add it.";
+		else
+			mes "You have not found any other towns yet. Talk to a town's Kafra to add it.";
+		close3;
+	}
+	.@j = select(.@menu$ + "Cancel") - 1;
+	if (.@j >= .@n)
+		close3;
+	.@i = .@pick[.@j];
+	// a Free Ticket for Kafra Transportation pays the fee
+	if (countitem(7060) > 0)
+		delitem 7060, 1;
+	else if (Zeny < $@way_fee[.@i]) {
+		mes .@title$;
+		mes "I'm sorry, but you don't have enough zeny. The fee to " + $@way_name$[.@i] + " is " + callfunc("F_InsertComma", $@way_fee[.@i]) + " zeny.";
+		close3;
+	} else
+		Zeny -= $@way_fee[.@i];
+	cutin "", 255;
+	warp $@way_map$[.@i], $@way_x[.@i], $@way_y[.@i];
+	end;
+}
+
+// A waystone by a dungeon's entrance (waypoint_points.txt duplicates it at each): walking up finds it, a talk also
+// teleports
+-	script	Waystone	-1,{
+	callfunc "F_WayUnlock", strnpcinfo(2);
+	callfunc "F_WayMenu", "[Waystone]";
+	end;
+
+OnTouch:
+	callfunc "F_WayUnlock", strnpcinfo(2);
+	end;
+}
+
+-	script	Waypoints	-1,{
+	end;
+
+// GM: @waypoint list | all | reset (docs/debug-commands.md)
+OnInit:
+	bindatcmd "waypoint", strnpcinfo(3) + "::OnCommand", 60, 99;
+	end;
+
+OnCommand:
+	.@do$ = .@atcmd_parameters$[0];
+	.@n = getarraysize($@way_key$);
+	if (.@do$ == "all") {
+		for (.@i = 0; .@i < .@n; .@i++)
+			setd "WP_" + $@way_key$[.@i], 1;
+		dispbottom "All " + .@n + " teleport destinations found.";
+	} else if (.@do$ == "reset") {
+		for (.@i = 0; .@i < .@n; .@i++)
+			setd "WP_" + $@way_key$[.@i], 0;
+		WP_STARTED = 0;
+		callfunc "F_WayUnlock", "prontera", 1;
+		callfunc "F_WayUnlock", getsavepoint(0), 1;
+		WP_STARTED = 1;
+		dispbottom "Teleport destinations reset: Prontera and your save town only.";
+	} else if (.@do$ == "list") {
+		for (.@i = 0; .@i < .@n; .@i++) {
+			if (getd("WP_" + $@way_key$[.@i]))
+				.@found$[getarraysize(.@found$)] = $@way_name$[.@i];
+			else
+				.@missing++;
+		}
+		dispbottom getarraysize(.@found$) + " of " + .@n + " found, " + .@missing + " to go:";
+		// six a line
+		for (.@i = 0; .@i < getarraysize(.@found$); .@i++) {
+			.@line$ += (.@line$ == "" ? "  " : ", ") + .@found$[.@i];
+			if (.@i % 6 == 5 || .@i == getarraysize(.@found$) - 1) {
+				dispbottom .@line$;
+				.@line$ = "";
+			}
+		}
+	} else
+		dispbottom "Usage: @waypoint list | all | reset";
+	end;
+
+// a new character (or one from before the network) has Prontera and its save town
+OnPCLoginEvent:
+	if (!WP_STARTED) {
+		WP_STARTED = 1;
+		callfunc "F_WayUnlock", "prontera", 1;
+		callfunc "F_WayUnlock", getsavepoint(0), 1;
+	}
+	end;
+
+// a town with no Kafra (waypoint_points.txt sets loadevent on it): walking in finds it
+OnPCLoadMapEvent:
+	.@i = callfunc("F_WayIndex", strcharinfo(3));
+	if (.@i >= 0 && $@way_auto[.@i])
+		callfunc "F_WayUnlock", $@way_key$[.@i];
+	end;
+}

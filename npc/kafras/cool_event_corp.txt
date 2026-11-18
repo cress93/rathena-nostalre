@@ -23,6 +23,7 @@
 
 //callfunc "F_CoolEventCorp","<menu>","<location>","<save map>",<x>,<y>,"<warp map>";
 function	script	F_CoolEventCorp	{
+	callfunc "F_WayUnlockHere"; // nostalRE: talking to the staff finds the town (npc/custom/waypoints.txt)
 	cutin "zonda_01",2;
 	mes "[Cool Event Corp. Staff]";
 	mes "Welcome to Cool Event Corp.";
@@ -71,36 +72,8 @@ function	script	F_CoolEventCorp	{
 		openstorage;
 		break;
 	case 3:
-		mes "Please choose";
-		mes "your destination.";
-		next;
-		if (VIP_SCRIPT && !vip_status(VIP_STATUS_ACTIVE))
-			set .@cost,4400;
-		else
-			set .@cost,2200;
-		.@destination$ = getarg(5);
-		if (select(.@destination$ +" -> "+ .@cost +" z:Cancel") == 1) {
-			if ((countitem(7060) != 0) || (Zeny >= .@cost)) {
-				if (countitem(7060) != 0) {
-					delitem 7060,1; //Warp_Free_Ticket
-				}
-				else {
-					set Zeny,Zeny-.@cost;
-				}
-				if (.@destination$ == "Veins") warp "veins",205,101;
-				else if (.@destination$ == "Rachel") warp "rachel",115,125;
-				cutin "",255;
-				end;
-			}
-			else {
-				mes "[Cool Event Corp. Staff]";
-				mes "I'm sorry, but you don't have";
-				mes "enough zeny for the Teleport";
-				mes "Service. The fee to teleport";
-				mes "to "+ .@destination$ +" is "+.@cost+" zeny.";
-			}
-		}
-		close2;
+		// nostalRE: the places this character has found (npc/custom/waypoints.txt), not one town
+		callfunc "F_WayMenu", "[Cool Event Corp. Staff]";
 		break;
 	case 4:
 		mes "[Cool Event Corp. Staff]";
