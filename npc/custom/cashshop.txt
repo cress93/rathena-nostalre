@@ -11,11 +11,12 @@ prontera,160,188,3	script	Cash Shop#prt	4_F_KAFRA1,{
 	mes "[Cash Shop]";
 	mes "Welcome! Everything the cash shop";
 	mes "sells, for zeny. What are you after?";
-	switch (select("Boosters & Scrolls:Food & Potions:Boxes & Refining:Costumes:Nothing")) {
+	switch (select("Boosters & Scrolls:Food & Potions:Boxes & Refining:Capture Balls:Costumes:Nothing")) {
 	case 1: callshop "CashShop_Boosters",1; break;
 	case 2: callshop "CashShop_Food",1; break;
 	case 3: callshop "CashShop_Boxes",1; break;
-	case 4:
+	case 4: callshop "CashShop_Capture",1; break;
+	case 5:
 		// every costume the item database has, by slot, a few hundred to a page
 		clear;
 		mes "[Cash Shop]";
@@ -118,6 +119,9 @@ OnInit:
 
 // enriched ores, card albums, boxes, branches and pet eggs
 -	shop	CashShop_Boxes	-1,7619:200000,7620:200000,7621:300000,616:1000000,12246:1000000,617:300000,603:100000,644:50000,12103:300000,13708:200000
+
+// capture balls (npc/custom/capture.txt), Basic to Master
+-	shop	CashShop_Capture	-1,99901:5000,99902:20000,99903:60000,99904:1000000
 
 // costumes, by slot: filled in by the Cash Shop's OnInit
 -	shop	CashShop_Costume_Upper1	-1,5909:50000

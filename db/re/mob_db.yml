@@ -120898,3 +120898,16 @@ Body:
 #    AegisName: HUNTING_GID_DEFAULT
 #  - Id: 32000
 #    AegisName: MONSTER_2ND_END
+  # nostalRE: a Capture Chest (npc/custom/capture.txt), a WoE treasure chest to look at
+  # (db/import-tmpl/mob_avail.yml). It stands still and drops capture balls by its map's level;
+  # the script sets its HP from that level too.
+  - Id: 31990
+    AegisName: CAPTURE_CHEST
+    Name: Capture Chest
+    Level: 1
+    Hp: 100
+    Size: Small
+    Race: Formless
+    Element: Neutral
+    ElementLevel: 1
+    Ai: 06

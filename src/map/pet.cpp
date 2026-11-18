@@ -3,6 +3,7 @@
 
 #include "pet.hpp"
 
+#include <cmath>
 #include <cstdlib>
 #include <map>
 #include <string>
@@ -34,6 +35,7 @@ struct s_pet_catch_process{
 	uint32 char_id;
 	t_itemid taming_item;
 	e_pet_catch_flag flag;
+	int32 capture_tier; // nostalRE: a capture ball's tier (1-4), 0 for a pet lure
 };
 
 std::unordered_map<uint32, std::shared_ptr<s_pet_catch_process>> pet_catchprocesses;
@@ -1229,8 +1231,75 @@ void pet_catch_process_start( map_session_data& sd, t_itemid item_id, e_pet_catc
 	process->char_id = sd.status.char_id;
 	process->taming_item = item_id;
 	process->flag = flag;
+	process->capture_tier = 0;
 
 	clif_catch_process(sd);
+}
+
+// ---- nostalRE: capture balls ------------------------------------------------
+// A capture ball (npc/custom/capture.txt) throws like a pet lure: the client's catch cursor, then
+// CZ_TRYCAPTURE_MONSTER. Any monster can be caught instead of a pet's own, into one of the player's three
+// monster slots, which the script keeps.
+
+/// Starts a capture ball's throw: `tier` 1 (Basic) to 4 (Master)
+void pet_capture_start( map_session_data& sd, t_itemid item_id, int32 tier ){
+	pet_catch_process_start( sd, item_id, PET_CATCH_UNIVERSAL_ALL );
+	std::shared_ptr<s_pet_catch_process> process = util::umap_find( pet_catchprocesses, sd.status.char_id );
+	if( process != nullptr )
+		process->capture_tier = cap_value( tier, 1, 4 );
+}
+
+/// The chance in 1/10000 a ball of `tier` catches `md`. Each tier is sure of itself up to a level (Basic 60, Great
+/// 130, Ultra 200, Master any: Renewal's monsters go to 265) and halves its odds every 10 levels past it; a hurt monster is easier, up to twice at
+/// no HP left. Bosses and MVPs only go into a Master, and seldom. 0: this ball cannot catch it at all
+static int32 capture_chance( const mob_data& md, int32 tier ){
+	static constexpr int32 LEVEL_CAP[] = { 0, 60, 130, 200, 999 };
+	const e_mob_bosstype boss = md.get_bosstype();
+	double base;
+	if( boss == BOSSTYPE_MVP )
+		base = tier == 4 ? 300 : 0;
+	else if( boss == BOSSTYPE_MINIBOSS )
+		base = tier == 4 ? 1500 : 0;
+	else {
+		base = tier == 4 ? 9000 : 5000;
+		const int32 over = md.level - LEVEL_CAP[tier];
+		if( over > 0 )
+			base *= std::pow( 0.5, over / 10.0 );
+	}
+	if( base <= 0 )
+		return 0;
+	const double hurt = ( 200 - get_percentage( md.status.hp, md.status.max_hp ) ) / 100.0;
+	return cap_value( static_cast<int32>( base * hurt ), 1, 10000 );
+}
+
+/// The ball landed on `md`: caught (gone without drops or exp, into the script's OnCaught with @capture_mob) or not
+static void capture_end( map_session_data& sd, mob_data& md, int32 tier ){
+	// someone's summon, a scripted spawn's special AI, or a Capture Chest are not for catching
+	if( md.master_id != 0 || md.special_state.ai != AI_NONE || md.mob_id == 31990 ){
+		clif_pet_roulette( sd, false );
+		clif_displaymessage( sd.fd, "That cannot be caught." );
+		return;
+	}
+	if( battle_config.pet_distance_check && distance_bl( &sd, &md ) > battle_config.pet_distance_check ){
+		clif_pet_roulette( sd, false );
+		return;
+	}
+	const int32 chance = capture_chance( md, tier );
+	if( chance == 0 ){
+		clif_pet_roulette( sd, false );
+		clif_displaymessage( sd.fd, "Only a Master Capture Ball can hold a boss." );
+		return;
+	}
+	if( !rnd_chance( chance, 10000 ) ){
+		clif_pet_roulette( sd, false );
+		clif_displaymessage( sd.fd, "It broke free!" );
+		return;
+	}
+	pc_setreg( &sd, add_str( "@capture_mob" ), md.mob_id );
+	unit_remove_map( &md, CLR_OUTSIGHT );
+	status_kill( &md );
+	clif_pet_roulette( sd, true );
+	npc_event( &sd, "CaptureSystem::OnCaught", 0 );
 }
 
 /**
@@ -1261,6 +1330,13 @@ void pet_catch_process_end( map_session_data& sd, int32 target_id ){
 		pet_catchprocesses.erase( sd.status.char_id );
 		clif_displaymessage(sd.fd, msg_txt(&sd, 669)); // You can't catch any pet on this map.
 
+		return;
+	}
+
+	// nostalRE: a capture ball catches any monster, by its own odds
+	if( process->capture_tier > 0 ){
+		capture_end( sd, *md, process->capture_tier );
+		pet_catchprocesses.erase( sd.status.char_id );
 		return;
 	}
 

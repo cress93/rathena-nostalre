@@ -253,6 +253,11 @@ static uint16_t population_job_for_map_level(uint16_t job_id, int16_t map_id, ui
 	return FIRST_CLASSES[rnd() % std::size(FIRST_CLASSES)];
 }
 
+int32_t population_engine_map_mob_level(int16_t m)
+{
+	return population_map_mob_level(m);
+}
+
 /// Roll a shell's base and job level for a map.
 ///
 /// `map_category` 1 (town) and fields or dungeons with no monsters use a broad range:

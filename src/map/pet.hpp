@@ -237,6 +237,7 @@ int32 pet_birth_process(map_session_data *sd, struct s_pet *pet);
 int32 pet_recv_petdata(uint32 account_id,struct s_pet *p,int32 flag);
 int32 pet_select_egg(map_session_data *sd,int16 egg_index);
 void pet_catch_process_start( map_session_data& sd, t_itemid item_id, e_pet_catch_flag flag );
+void pet_capture_start( map_session_data& sd, t_itemid item_id, int32 tier ); // nostalRE: capture balls
 void pet_catch_process_end( map_session_data& sd, int32 target_id );
 bool pet_get_egg(uint32 account_id, int16 pet_class, int32 pet_id);
 int32 pet_menu(map_session_data *sd,int32 menunum);

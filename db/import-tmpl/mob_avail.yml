@@ -43,7 +43,11 @@ Header:
   Type: MOB_AVAIL_DB
   Version: 1
 
-#Body:
+Body:
+  # nostalRE: the Capture Chest (npc/custom/capture.txt) looks like a WoE treasure chest
+  - Mob: CAPTURE_CHEST
+    Sprite: TREASURE_BOX1
+
   # Examples
 #  - Mob: PORING
 #    Sprite: BAPHOMET

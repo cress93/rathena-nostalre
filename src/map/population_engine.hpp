@@ -53,6 +53,8 @@ bool population_engine_is_running();
 bool population_engine_is_population_pc(int32_t id);
 /// nostalRE: a real (non-shell) player is on map m; always true with population_engine_demand_spawn off
 bool population_engine_map_has_real_players(int16_t m);
+/// nostalRE: the mean level of a map's permanent monsters (0: none), as shells take theirs from
+int32_t population_engine_map_mob_level(int16_t m);
 /// Returns true if the shell has PSF::Mortal set (will take damage; default is immortal).
 bool population_engine_shell_is_mortal(const map_session_data *sd);
 /// Called from pc_dead when a mortal population shell reaches 0 HP. Schedules a respawn.

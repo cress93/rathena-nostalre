@@ -88654,3 +88654,36 @@ Body:
       NoGuildStorage: true
       NoMail: true
       NoAuction: true
+  # nostalRE: capture balls (npc/custom/capture.txt); the client names them itself (custom_items)
+  - Id: 99901
+    AegisName: Capture_Ball_Basic
+    Name: Basic Capture Ball
+    Type: Usable
+    Buy: 2000
+    Weight: 10
+    Script: |
+      callfunc "F_CaptureThrow",1;
+  - Id: 99902
+    AegisName: Capture_Ball_Great
+    Name: Great Capture Ball
+    Type: Usable
+    Buy: 10000
+    Weight: 10
+    Script: |
+      callfunc "F_CaptureThrow",2;
+  - Id: 99903
+    AegisName: Capture_Ball_Ultra
+    Name: Ultra Capture Ball
+    Type: Usable
+    Buy: 40000
+    Weight: 10
+    Script: |
+      callfunc "F_CaptureThrow",3;
+  - Id: 99904
+    AegisName: Capture_Ball_Master
+    Name: Master Capture Ball
+    Type: Usable
+    Buy: 500000
+    Weight: 10
+    Script: |
+      callfunc "F_CaptureThrow",4;

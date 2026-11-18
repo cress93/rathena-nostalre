@@ -1,0 +1,343 @@
+//===== rAthena Script =======================================
+//= Capture balls
+//===== Description: =========================================
+//= nostalRE: any monster can be caught with a capture ball
+//= (db/re/item_db_usable.yml 99901-99904; the odds are in
+//= src/map/pet.cpp, capture_chance) into one of three slots.
+//= The client's Monsters screen (Menu > Monsters) calls one
+//= out to fight beside its owner, puts it back, or releases
+//= it: it sends @capture, and reads the slots from the
+//= [[capture]] lines F_CaptureSync sends, which it keeps out
+//= of the chat. A called monster that falls goes back to its
+//= ball and needs 60 s before it can be called again.
+//= A caught monster levels up while it is out: every kill
+//= while it fights is worth the prey's level in EXP (less
+//= for prey far below it), four times as much while it is
+//= below its owner's level; F_CaptureStats makes its stats
+//= from its level.
+//= A Capture Chest (31990) appears on every field and
+//= dungeon a player enters (one at a time), unannounced,
+//= with HP and balls by the map's level (getmapmoblevel).
+//============================================================
+
+// A ball's script: the throw, unless every slot is taken (then the ball comes back)
+function	script	F_CaptureThrow	{
+	if (callfunc("F_CaptureFreeSlot") < 0) {
+		dispbottom "Your three monster slots are full: release one first (Menu > Monsters).";
+		getitem 99900 + getarg(0), 1;
+		end;
+	}
+	capturemonster getarg(0);
+	end;
+}
+
+// The first empty slot, -1 when all three are taken
+function	script	F_CaptureFreeSlot	{
+	for (.@i = 0; .@i < 3; .@i++)
+		if (!CAPTURE_MOB[.@i])
+			return .@i;
+	return -1;
+}
+
+// The slots for the client: [[capture]]<slot out or -1>|<slot 1>|<slot 2>|<slot 3>, each slot 0 when empty or
+// id,level,hp,atk min,atk max,def,mdef,race,element,element level,size,seconds to recover,exp,exp to next,name
+function	script	F_CaptureSync	{
+	.@now = gettimetick(2);
+	.@line$ = "[[capture]]" + (@capture_gid ? @capture_slot : -1);
+	for (.@i = 0; .@i < 3; .@i++) {
+		.@id = CAPTURE_MOB[.@i];
+		if (!.@id) {
+			.@line$ += "|0";
+			continue;
+		}
+		.@cd = CAPTURE_CD[.@i] - .@now;
+		callfunc "F_CaptureStats", .@i;
+		.@line$ += "|" + .@id + "," + @cs_lv + "," + @cs_hp + "," + @cs_atk1 + "," + @cs_atk2
+			+ "," + @cs_def + "," + @cs_mdef
+			+ "," + getmonsterinfo(.@id, MOB_RACE) + "," + getmonsterinfo(.@id, MOB_ELEMENT)
+			+ "," + getmonsterinfo(.@id, MOB_ELEMENTLV) + "," + getmonsterinfo(.@id, MOB_SIZE)
+			+ "," + (.@cd > 0 ? .@cd : 0) + "," + CAPTURE_EXP[.@i] + "," + callfunc("F_CaptureExpNext", @cs_lv)
+			+ "," + getmonsterinfo(.@id, MOB_NAME);
+	}
+	dispbottom .@line$;
+	return;
+}
+
+// The EXP a caught monster of level getarg(0) needs for the next: a dozen kills of its own level while it
+// catches up to its owner, about fifty after
+function	script	F_CaptureExpNext	{
+	return 10 + getarg(0) * getarg(0) / 2;
+}
+
+// A wild monster's typical HP (getarg(0) 0) or ATK (1) at level getarg(1): the medians of db/re/mob_db.yml's
+// ordinary monsters (no bosses, MVPs or event monsters) at these levels, joined by straight lines; the ATK of the
+// lowest levels is that of the ones that fight (plants and eggs would make it 1). Renewal's grow fast past 120:
+// HP from about 10,000 at 95 to millions past 180
+function	script	F_CaptureCurve	{
+	setarray .@at[0], 1, 5, 25, 45, 65, 95, 125, 155, 185, 215, 245, 275;
+	if (getarg(0) == 0)
+		setarray .@v[0], 40, 50, 524, 1300, 2528, 10163, 40719, 290324, 2399191, 11790680, 34898360, 40000000;
+	else
+		setarray .@v[0], 8, 10, 30, 61, 119, 277, 623, 1126, 2300, 4651, 7082, 12224;
+	.@l = cap_value(getarg(1), 1, 275);
+	.@i = 1;
+	while (.@i < 11 && .@l > .@at[.@i])
+		.@i++;
+	.@a = .@at[.@i - 1];
+	.@step = (.@v[.@i] - .@v[.@i - 1]) / (.@at[.@i] - .@a);
+	return .@v[.@i - 1] + .@step * (.@l - .@a);
+}
+
+// A typical homunculus's HP (getarg(0) 0) or mean ATK (1) at level getarg(1): db/re/homunculus_db.yml's four to
+// 99 (HP 84 and STR/DEX 1.3 a level, on average), then evolved (+2,600 HP) and the five S types (HP 203, STR/DEX
+// 2.6 a level); ATK as status.cpp gives a homunculus in Renewal, 2 x level + STR and a share of STR, DEX and LUK
+function	script	F_CaptureHomun	{
+	.@l = cap_value(getarg(1), 1, 275);
+	if (getarg(0) == 0)
+		return .@l <= 99 ? 160 + 84 * (.@l - 1) : 10992 + 203 * (.@l - 99);
+	// STR (and DEX) and LUK, in tenths
+	.@str = .@l <= 99 ? 220 + 13 * (.@l - 1) : 1529 + 26 * (.@l - 99);
+	.@luk = 100 + 8 * .@l;
+	return 2 * .@l + .@str / 10 + (2 * .@str / 5 + (.@luk + 2 * .@str) / 3) / 20;
+}
+
+// Slot getarg(0)'s level (one caught before levels had them starts at its kind's own) and the stats it makes, into
+// @cs_lv, @cs_hp, @cs_atk1, @cs_atk2, @cs_def, @cs_mdef, @cs_hit, @cs_flee.
+// A companion is held to a homunculus of its level: its HP, and to level 100 its ATK. A homunculus's own power
+// later is its skills, which a caught monster has none of; its plain ATK would barely scratch Renewal's late
+// monsters. So from 100 to 180 the ATK moves over to what fells a wild monster of its level in 60 + (level - 100)
+// hits: about 140 at 175, 210 at 250, a help but never the one doing the work.
+// A kind keeps how far its HP, ATK and DEF stand from the typical wild monster at its own level (0.4 to 2.5
+// times), each on its own: a hard hitter with little HP stays one
+function	script	F_CaptureStats	{
+	.@s = getarg(0);
+	.@id = CAPTURE_MOB[.@s];
+	.@base = max(1, getmonsterinfo(.@id, MOB_LV));
+	if (CAPTURE_LV[.@s] < 1) {
+		CAPTURE_LV[.@s] = .@base;
+		CAPTURE_EXP[.@s] = 0;
+	}
+	.@lv = CAPTURE_LV[.@s];
+	// the kind against a typical wild monster of its own level, in percent (big HP divided first: 100 times
+	// would overflow)
+	.@kind_hp = getmonsterinfo(.@id, MOB_MAXHP);
+	.@typ_hp = max(1, callfunc("F_CaptureCurve", 0, .@base));
+	.@r_hp = cap_value(.@kind_hp > 10000000 ? .@kind_hp / max(1, .@typ_hp / 100) : 100 * .@kind_hp / .@typ_hp, 40, 250);
+	.@kind_atk = (getmonsterinfo(.@id, MOB_ATKMIN) + getmonsterinfo(.@id, MOB_ATKMAX)) / 2;
+	.@r_atk = cap_value(100 * .@kind_atk / max(1, callfunc("F_CaptureCurve", 1, .@base)), 40, 250);
+	.@r_def = cap_value(100 * getmonsterinfo(.@id, MOB_DEF) / (10 + 12 * .@base / 10), 40, 250);
+	.@r_mdef = cap_value(100 * getmonsterinfo(.@id, MOB_MDEF) / (3 + 6 * .@base / 10), 40, 250);
+
+	@cs_lv = .@lv;
+	@cs_hp = max(50, callfunc("F_CaptureHomun", 0, .@lv) * .@r_hp / 100);
+	// a homunculus's ATK, and past 100 more and more of what fells a wild one in 60 + (level - 100) hits
+	.@atk = callfunc("F_CaptureHomun", 1, .@lv);
+	if (.@lv > 100) {
+		.@late = callfunc("F_CaptureCurve", 0, .@lv) / (60 + .@lv - 100);
+		.@w = min(80, .@lv - 100);
+		.@atk = max(.@atk, (.@late / 80) * .@w + .@atk * (80 - .@w) / 80);
+	}
+	.@atk = max(1, .@atk / 100 * .@r_atk + .@atk % 100 * .@r_atk / 100);
+	@cs_atk1 = max(1, .@atk * 85 / 100);
+	@cs_atk2 = max(1, .@atk * 115 / 100);
+	@cs_def = (10 + 12 * .@lv / 10) * .@r_def / 100;
+	@cs_mdef = (3 + 6 * .@lv / 10) * .@r_mdef / 100;
+	// it hits and dodges like a monster of its level
+	@cs_hit = 170 + 2 * .@lv;
+	@cs_flee = 100 + .@lv;
+	return;
+}
+
+// On entering a field or dungeon: a Capture Chest appears on it, unless one is still there
+function	script	F_CaptureChestRoll	{
+	.@map$ = strcharinfo(3);
+	if (getmapflag(.@map$, MF_TOWN) || getmapflag(.@map$, MF_PVP) || getmapflag(.@map$, MF_GVG))
+		return;
+	.@lv = getmapmoblevel(.@map$);
+	if (.@lv <= 0)
+		return;
+	if (mobcount(.@map$, "CaptureSystem::OnChestOpened") > 0)
+		return;
+	monster .@map$, 0, 0, "Capture Chest", 31990, 1, "CaptureSystem::OnChestOpened";
+	.@gid = $@mobid[0];
+	// sturdier the deeper the map: 312 HP on a Poring field, about 30,000 at level 99, 200,000 at 260
+	.@hp = 300 + .@lv * .@lv * 3;
+	setunitdata .@gid, UMOB_LEVEL, .@lv;
+	setunitdata .@gid, UMOB_MAXHP, .@hp;
+	setunitdata .@gid, UMOB_HP, .@hp;
+	setd "$@capture_chest_" + .@map$, .@lv;
+	return;
+}
+
+-	script	CaptureSystem	-1,{
+	end;
+
+OnInit:
+	bindatcmd "capture", strnpcinfo(3) + "::OnCommand", 0, 99;
+	end;
+
+OnPCLoginEvent:
+	@capture_gid = 0;
+	callfunc "F_CaptureSync";
+	addtimer 2000, strnpcinfo(3) + "::OnTick";
+	end;
+
+// src/map/pet.cpp: a ball caught @capture_mob
+OnCaught:
+	.@slot = callfunc("F_CaptureFreeSlot");
+	if (.@slot < 0)
+		end;
+	CAPTURE_MOB[.@slot] = @capture_mob;
+	CAPTURE_CD[.@slot] = 0;
+	CAPTURE_LV[.@slot] = max(1, getmonsterinfo(@capture_mob, MOB_LV));
+	CAPTURE_EXP[.@slot] = 0;
+	dispbottom "Caught " + getmonsterinfo(@capture_mob, MOB_NAME) + "! It waits in slot " + (.@slot + 1) + " (Menu > Monsters).";
+	callfunc "F_CaptureSync";
+	// a Capture quest of the quest board (questboard.txt)
+	callfunc "F_QBCaught", @capture_mob;
+	end;
+
+// @capture call <slot> | release <slot> | list
+OnCommand:
+	.@do$ = .@atcmd_parameters$[0];
+	.@slot = atoi(.@atcmd_parameters$[1]) - 1;
+	if (.@do$ == "list") {
+		callfunc "F_CaptureSync";
+		end;
+	}
+	if ((.@do$ != "call" && .@do$ != "release") || .@slot < 0 || .@slot > 2 || !CAPTURE_MOB[.@slot]) {
+		dispbottom "Usage: @capture call <slot 1-3>, @capture release <slot 1-3>, @capture list";
+		end;
+	}
+	if (.@do$ == "call") {
+		// the one out goes back first; calling it again only does that
+		.@was = @capture_gid ? @capture_slot : -1;
+		callsub S_Recall;
+		if (.@was != .@slot)
+			callsub S_Call, .@slot;
+	} else {
+		if (@capture_gid && @capture_slot == .@slot)
+			callsub S_Recall;
+		dispbottom "You let " + getmonsterinfo(CAPTURE_MOB[.@slot], MOB_NAME) + " go.";
+		CAPTURE_MOB[.@slot] = 0;
+		CAPTURE_CD[.@slot] = 0;
+		CAPTURE_LV[.@slot] = 0;
+		CAPTURE_EXP[.@slot] = 0;
+	}
+	callfunc "F_CaptureSync";
+	end;
+
+// Calls slot getarg(0) out to fight beside its owner, unless it is still recovering
+S_Call:
+	.@s = getarg(0);
+	.@left = CAPTURE_CD[.@s] - gettimetick(2);
+	if (.@left > 0) {
+		dispbottom getmonsterinfo(CAPTURE_MOB[.@s], MOB_NAME) + " is still recovering (" + .@left + " s).";
+		return;
+	}
+	@capture_slot = .@s;
+	@capture_map$ = strcharinfo(3);
+	// an hour is the most a summon lives; the tick calls it again when it runs out
+	@capture_gid = summon("--ja--", CAPTURE_MOB[.@s], 3600000);
+	callsub S_Apply, 1;
+	return;
+
+// The one out gets its level's stats; getarg(0) 1 also fills its HP (called, or grown)
+S_Apply:
+	if (!@capture_gid || !unitexists(@capture_gid))
+		return;
+	callfunc "F_CaptureStats", @capture_slot;
+	setunitdata @capture_gid, UMOB_LEVEL, @cs_lv;
+	setunitdata @capture_gid, UMOB_MAXHP, @cs_hp;
+	if (getarg(0))
+		setunitdata @capture_gid, UMOB_HP, @cs_hp;
+	setunitdata @capture_gid, UMOB_ATKMIN, @cs_atk1;
+	setunitdata @capture_gid, UMOB_ATKMAX, @cs_atk2;
+	setunitdata @capture_gid, UMOB_DEF, @cs_def;
+	setunitdata @capture_gid, UMOB_MDEF, @cs_mdef;
+	setunitdata @capture_gid, UMOB_HIT, @cs_hit;
+	setunitdata @capture_gid, UMOB_FLEE, @cs_flee;
+	return;
+
+// The one out back into its ball
+S_Recall:
+	if (@capture_gid && unitexists(@capture_gid))
+		unitkill @capture_gid;
+	@capture_gid = 0;
+	return;
+
+// A kill while a caught monster is out: its EXP, worth the prey's level (less for prey far below it, at most half
+// again for prey above it), four times as much while it is below its owner
+OnNPCKillEvent:
+	if (!@capture_gid || !unitexists(@capture_gid))
+		end;
+	.@s = @capture_slot;
+	callfunc "F_CaptureStats", .@s;
+	.@lv = CAPTURE_LV[.@s];
+	.@prey = getmonsterinfo(killedrid, MOB_LV);
+	if (.@lv >= 275 || .@prey < 1)
+		end;
+	.@gain = min(.@prey * 3 / 2, max(1, .@prey * (.@prey + 10) / (.@lv + 10)));
+	if (.@lv < BaseLevel)
+		.@gain *= 4;
+	CAPTURE_EXP[.@s] += .@gain;
+	.@grown = 0;
+	while (.@lv < 275 && CAPTURE_EXP[.@s] >= callfunc("F_CaptureExpNext", .@lv)) {
+		CAPTURE_EXP[.@s] -= callfunc("F_CaptureExpNext", .@lv);
+		.@lv++;
+		.@grown = 1;
+	}
+	if (.@grown) {
+		CAPTURE_LV[.@s] = .@lv;
+		dispbottom getmonsterinfo(CAPTURE_MOB[.@s], MOB_NAME) + " grew to level " + .@lv + "!";
+		callsub S_Apply, 1;
+	}
+	callfunc "F_CaptureSync";
+	end;
+
+// Every 2 s for each player: the called monster follows to a new map, or fell; and a map entered may get a chest
+OnTick:
+	if (@capture_gid) {
+		.@here$ = strcharinfo(3);
+		.@away = 0;
+		if (unitexists(@capture_gid)) {
+			getunitdata @capture_gid, .@d;
+			.@away = mapid2name(.@d[UMOB_MAPID]) != .@here$;
+		}
+		if (.@away || (!unitexists(@capture_gid) && @capture_map$ != .@here$)) {
+			// left behind (or gone with the map change): it comes along
+			callsub S_Recall;
+			callsub S_Call, @capture_slot;
+			callfunc "F_CaptureSync";
+		} else if (!unitexists(@capture_gid)) {
+			// it fell (or its hour ran out): back in its ball to recover
+			CAPTURE_CD[@capture_slot] = gettimetick(2) + 60;
+			dispbottom getmonsterinfo(CAPTURE_MOB[@capture_slot], MOB_NAME) + " is back in its ball to recover (60 s).";
+			@capture_gid = 0;
+			callfunc "F_CaptureSync";
+		}
+	}
+	if (@capture_last_map$ != strcharinfo(3)) {
+		@capture_last_map$ = strcharinfo(3);
+		callfunc "F_CaptureChestRoll";
+	}
+	addtimer 2000, strnpcinfo(3) + "::OnTick";
+	end;
+
+// A chest broken open (its opener attached): two or three balls for the map's level, sometimes a better one
+OnChestOpened:
+	if (!unitexists(killedgid))
+		end;
+	getunitdata killedgid, .@d;
+	.@m$ = mapid2name(.@d[UMOB_MAPID]);
+	.@lv = getd("$@capture_chest_" + .@m$);
+	.@tier = .@lv <= 60 ? 1 : (.@lv <= 130 ? 2 : 3);
+	.@count = 2 + rand(2);
+	for (.@i = 0; .@i < .@count; .@i++)
+		makeitem 99900 + .@tier, 1, .@m$, .@d[UMOB_X], .@d[UMOB_Y];
+	if (.@tier < 3 && rand(100) < 25)
+		makeitem 99901 + .@tier, 1, .@m$, .@d[UMOB_X], .@d[UMOB_Y];
+	if (rand(100) < 3)
+		makeitem 99904, 1, .@m$, .@d[UMOB_X], .@d[UMOB_Y];
+	end;
+}

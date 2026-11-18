@@ -248,3 +248,27 @@ BUILDIN_FUNC(population_arena_jobs)
 	script_pushstrcopy(st, csv.c_str());
 	return SCRIPT_CMD_SUCCESS;
 }
+
+/*==========================================
+ * nostalRE: capture balls (npc/custom/capture.txt)
+ * capturemonster <tier>;
+ *   From a ball's item script: the catch cursor, then pet_capture_start's odds for a ball of
+ *   that tier (1 Basic .. 4 Master). A catch runs CaptureSystem::OnCaught with @capture_mob.
+ * getmapmoblevel("<map>")
+ *   The mean level of the map's permanent monsters, 0 when it has none.
+ *------------------------------------------*/
+BUILDIN_FUNC(capturemonster)
+{
+	map_session_data* sd;
+	if (!script_rid2sd(sd))
+		return SCRIPT_CMD_SUCCESS;
+	pet_capture_start(*sd, sd->itemid, script_getnum(st, 2));
+	return SCRIPT_CMD_SUCCESS;
+}
+
+BUILDIN_FUNC(getmapmoblevel)
+{
+	const int16 m = map_mapname2mapid(script_getstr(st, 2));
+	script_pushint(st, m < 0 ? 0 : population_engine_map_mob_level(m));
+	return SCRIPT_CMD_SUCCESS;
+}
