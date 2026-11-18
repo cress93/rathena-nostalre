@@ -28,9 +28,10 @@
 //= which it keeps out of the chat. A board opens the screen.
 //============================================================
 
-// The cards renew by themselves every 30 minutes; a reroll is free once an hour
+// The cards renew by themselves every 30 minutes; a reroll is free once an hour; both the shorter by the Card
+// Album's share (npc/custom/cardalbum.txt)
 function	script	F_QBWaits	{
-	return getarg(0) ? 3600 : 1800;
+	return (getarg(0) ? 3600 : 1800) * (100 - min(90, #ALBUM_BOARD)) / 100;
 }
 
 // The cards renewed when their 30 minutes are up (a new character's at once); 1 when they were
@@ -619,6 +620,9 @@ OnCommand:
 				// the card is taken: its place stays empty until the board renews
 				QBC_KIND[.@s] = 0;
 				dispbottom "Quest taken: " + callfunc("F_QBKind", QBA_KIND[.@a]) + " on " + callfunc("F_QBWhere", .@a, 1) + ".";
+				// no portal leads to the endgame fields (npc/custom/mobs/fields/endgame.txt)
+				if (QBA_KIND[.@a] < 6 && compare("|mu_fild01|jor_tail|jor_back1|jor_back2|jor_back3|jor_back4|jor_back5|jor_back6|jor_twice|", "|" + QBA_MAP$[.@a] + "|"))
+					dispbottom "The Expedition Guide by Prontera's quest board takes you there.";
 			}
 		}
 	} else if (.@do$ == "reroll") {

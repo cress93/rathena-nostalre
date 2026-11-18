@@ -14,6 +14,8 @@
 
 { "population_engine_enable",&battle_config.population_engine_enable,0,0,1,}, // nostalRE: master switch, off by default
 { "population_engine_map_levels",&battle_config.population_engine_map_levels,1,0,1,}, // nostalRE
+{ "instance_mob_hp_rate",&battle_config.instance_mob_hp_rate,100,1,1000,}, // nostalRE
+{ "instance_mob_atk_rate",&battle_config.instance_mob_atk_rate,100,1,1000,}, // nostalRE
 { "population_engine_respawn_ms",&battle_config.population_engine_respawn_ms,5000,1000,600000,}, // nostalRE
 { "population_engine_demand_spawn",&battle_config.population_engine_demand_spawn,1,0,1,}, // nostalRE
 { "population_engine_demand_grace_ms",&battle_config.population_engine_demand_grace_ms,300000,0,INT_MAX,}, // nostalRE

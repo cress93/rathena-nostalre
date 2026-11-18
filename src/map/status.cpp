@@ -2821,6 +2821,11 @@ int32 status_calc_mob_(mob_data* md, uint8 opt)
 	if (md->master_id && battle_config.slaves_inherit_mode)
 		flag |= 32;
 
+	// nostalRE: monsters in an instance, made for a party, scaled for one player (instance_mob_hp_rate / _atk_rate)
+	if ((battle_config.instance_mob_hp_rate != 100 || battle_config.instance_mob_atk_rate != 100)
+		&& md->m >= 0 && map_getmapdata(md->m)->instance_id > 0)
+		flag |= 64;
+
 	if (!flag) { // No special status required.
 		if (md->base_status) {
 			aFree(md->base_status);
@@ -3061,6 +3066,17 @@ int32 status_calc_mob_(mob_data* md, uint8 opt)
 			}
 			status->hp = status->max_hp;
 		}
+	}
+
+	if (flag&64) { // nostalRE: an instance's monster for one player
+		const int32 hp_rate = battle_config.instance_mob_hp_rate, atk_rate = battle_config.instance_mob_atk_rate;
+		status->max_hp = std::max<uint32>(1, static_cast<uint32>(static_cast<uint64>(status->max_hp) * hp_rate / 100));
+		status->hp = status->max_hp;
+		status->rhw.atk = static_cast<uint16>(status->rhw.atk * atk_rate / 100);
+		status->rhw.atk2 = static_cast<uint16>(status->rhw.atk2 * atk_rate / 100);
+		status->batk = static_cast<uint16>(status->batk * atk_rate / 100);
+		status->matk_min = static_cast<uint16>(status->matk_min * atk_rate / 100);
+		status->matk_max = static_cast<uint16>(status->matk_max * atk_rate / 100);
 	}
 
 	if (opt&SCO_FIRST) // Initial battle status
