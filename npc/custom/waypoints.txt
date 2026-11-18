@@ -12,6 +12,11 @@
 //= A new character starts with Prontera and its save town.
 //============================================================
 
+// The fee to place getarg(0), less the Card Album's share off (npc/custom/cardalbum.txt): 0 is free
+function	script	F_WayFee	{
+	return $@way_fee[getarg(0)] * (100 - min(100, #ALBUM_TRAVEL)) / 100;
+}
+
 // The place a key is ("prontera", "prt_sewb1"; an Izlude channel is Izlude), -1 for none
 function	script	F_WayIndex	{
 	.@key$ = getarg(0);
@@ -60,7 +65,8 @@ function	script	F_WayMenu	{
 		if ($@way_dungeon[.@i] != .@kind || !getd("WP_" + $@way_key$[.@i]))
 			continue;
 		.@pick[.@n] = .@i;
-		.@menu$ += $@way_name$[.@i] + " - " + callfunc("F_InsertComma", $@way_fee[.@i]) + " z:";
+		.@fee = callfunc("F_WayFee", .@i);
+		.@menu$ += $@way_name$[.@i] + " - " + (.@fee ? callfunc("F_InsertComma", .@fee) + " z" : "free") + ":";
 		.@n++;
 	}
 	if (!.@n) {
@@ -76,14 +82,17 @@ function	script	F_WayMenu	{
 		close3;
 	.@i = .@pick[.@j];
 	// a Free Ticket for Kafra Transportation pays the fee
-	if (countitem(7060) > 0)
-		delitem 7060, 1;
-	else if (Zeny < $@way_fee[.@i]) {
-		mes .@title$;
-		mes "I'm sorry, but you don't have enough zeny. The fee to " + $@way_name$[.@i] + " is " + callfunc("F_InsertComma", $@way_fee[.@i]) + " zeny.";
-		close3;
-	} else
-		Zeny -= $@way_fee[.@i];
+	.@fee = callfunc("F_WayFee", .@i);
+	if (.@fee > 0) {
+		if (countitem(7060) > 0)
+			delitem 7060, 1;
+		else if (Zeny < .@fee) {
+			mes .@title$;
+			mes "I'm sorry, but you don't have enough zeny. The fee to " + $@way_name$[.@i] + " is " + callfunc("F_InsertComma", .@fee) + " zeny.";
+			close3;
+		} else
+			Zeny -= .@fee;
+	}
 	cutin "", 255;
 	warp $@way_map$[.@i], $@way_x[.@i], $@way_y[.@i];
 	end;

@@ -1,0 +1,702 @@
+//===== rAthena Script =======================================
+//= Quest board
+//===== Description: =========================================
+//= nostalRE: a board in every town offers each character the
+//= same three quests on maps of its level (the maps:
+//= npc/custom/questboard_maps.txt, generated). Four kinds:
+//=   Hunt     kill a number of one monster (anywhere)
+//=   Cull     kill a number of anything on the map
+//=   Elite    beat the map's marked elites (spawned for you)
+//=   Gather   bring a number of a common drop of the map
+//=   Combo Hunt  kill monsters of one race or element within
+//=            ten levels of the character, anywhere
+//= now and then a Grand Hunt (600 monsters within ten levels)
+//= instead; a fourth card is an instance of the character's level.
+//= each Easy, Normal or Hard: more effort, more reward, and a
+//= Hard quest adds one of the map's rare drops. Every quest
+//= gives EXP (five times what its monsters are worth, held to
+//= 8-25%, 14-50% or 22-100% of the level by difficulty) and
+//= up to two more rewards out of a budget by level: potions,
+//= buff scrolls, zeny, ores, capture balls, Cash Shop boosts
+//= (manuals, gum, Gym Pass...), or one costume box.
+//= Up to 3 quests at once, taken any time; a card taken stays
+//= empty until the cards renew by themselves every 30 minutes;
+//= a reroll is free once an hour; a quest can be aborted.
+//= Quests complete by themselves when their goal is reached.
+//= The client's Board screen (Menu > Board) shows it all: it
+//= sends @board, and reads the [[qb...]] lines F_QBSync sends,
+//= which it keeps out of the chat. A board opens the screen.
+//============================================================
+
+// The cards renew by themselves every 30 minutes; a reroll is free once an hour
+function	script	F_QBWaits	{
+	return getarg(0) ? 3600 : 1800;
+}
+
+// The cards renewed when their 30 minutes are up (a new character's at once); 1 when they were
+function	script	F_QBRenewCheck	{
+	if (QB_RENEW_AT > gettimetick(2))
+		return 0;
+	callfunc "F_QBReroll";
+	QB_RENEW_AT = gettimetick(2) + callfunc("F_QBWaits", 0);
+	return 1;
+}
+
+// A random 0 to getarg(0) - 1, 0 for a single choice (or none): rAthena's rand stops the script on a range of one
+function	script	F_QBRand	{
+	// no ?: here: rAthena works out both its sides
+	if (getarg(0) > 1)
+		return rand(getarg(0));
+	return 0;
+}
+
+// The kinds and difficulties, by number
+function	script	F_QBKind	{
+	setarray .@k$[1], "Hunt", "Cull", "Elite", "Gather", "Capture", "Instance", "Combo Hunt", "Grand Hunt";
+	return .@k$[getarg(0)];
+}
+
+// Monster getarg(0)'s name, or item getarg(0)'s for a Gather quest (getarg(1) 4), safe for the [[qb]] lines
+function	script	F_QBTargetName	{
+	.@n$ = getarg(1) == 4 ? getitemname(getarg(0)) : getmonsterinfo(getarg(0), MOB_NAME);
+	return replacestr(.@n$, "|", "/");
+}
+
+// The map table's index for map getarg(0), -1 when it is not in it
+function	script	F_QBMapIndex	{
+	freeloop(1); // walks the map table: past rAthena's loop limit, not endless
+	.@n = getarraysize($@qb_map$);
+	for (.@i = 0; .@i < .@n; .@i++)
+		if ($@qb_map$[.@i] == getarg(0))
+			return .@i;
+	return -1;
+}
+
+// A reward bundle worth about getarg(0) zeny for a character of level getarg(1), of kind getarg(2) (0 healing, 1
+// buffs, 2 zeny, 3 ores, 4 capture balls, 5 the Cash Shop's boosts: manuals, gum, Gym Pass and the like): into @qbr_id (-1 is zeny) and @qbr_amt. 0 when the kind has nothing worth
+// that little at that level
+function	script	F_QBBundle	{
+	.@worth = getarg(0);
+	.@lv = getarg(1);
+	switch (getarg(2)) {
+	// each: item, what one is worth, from level, to level, the most in one bundle
+	case 0:
+		// Red to White, Condensed White, Mastela, Blue, Royal Jelly, Small and Medium Life Potion, Mental Potion,
+		// Yggdrasil Berry
+		setarray .@id[0],  501, 502, 503,  504,  547,  522,  505,  526, 14534, 14535, 14600,   607;
+		setarray .@val[0],  30, 120, 400, 1200, 2500, 6000, 4000, 3000,  3000,  6000,  8000, 25000;
+		setarray .@from[0],  1,   1,  20,   45,   90,  110,   40,   20,    30,    60,    60,    70;
+		setarray .@to[0],   15,  40,  80,  140,  999,  999,  999,  999,   999,   999,   999,   999;
+		setarray .@max[0], 100, 100, 100,  100,   60,   50,   40,   30,    20,    20,    15,    10;
+		break;
+	case 1:
+		// Blessing, Agi, Aspersio, Assumptio scrolls, an elemental converter, a resist potion, Speed, Concentration,
+		// Awakening, Berserk Potion, a Box of Thunder / Sunlight / Storms / Resentment, Abrasive, a +10 stat dish
+		setarray .@id[0], 12215, 12216, 12217, 12218, 12114 + rand(4), 12118 + rand(4), 12016, 645, 656,  657;
+		setarray .@val[0], 10000, 10000, 10000, 15000, 4000, 2500, 15000, 800, 1500, 3000;
+		setarray .@from[0],   30,    30,    45,    60,   40,   30,    50,  10,   40,   85;
+		setarray .@to[0],    999,   999,   999,   999,  999,  999,   999, 999,  999,  999;
+		setarray .@max[0],    10,    10,    10,     5,   15,   15,     5,  30,   30,   20;
+		setarray .@id[10], 12028 + rand(2) * 5, 12030 + rand(2) * 2, 14536, 12075 + rand(6) * 5;
+		setarray .@val[10],   5000,  5000, 15000, 30000;
+		setarray .@from[10],    30,    30,    50,    60;
+		setarray .@to[10],     999,   999,   999,   999;
+		setarray .@max[10],      5,     5,     5,     5;
+		break;
+	case 2:
+		@qbr_id = -1;
+		@qbr_amt = max(100, .@worth);
+		return 1;
+	case 3:
+		setarray .@id[0],    984,   985,  7620,  7619;
+		setarray .@val[0], 15000, 15000, 80000, 80000;
+		setarray .@from[0],   40,    40,   120,   120;
+		setarray .@to[0],    999,   999,   999,   999;
+		setarray .@max[0],    10,    10,     5,     5;
+		break;
+	case 4:
+		setarray .@id[0],  99901, 99902, 99903;
+		setarray .@val[0],  5000, 20000, 60000;
+		setarray .@from[0],    1,    55,   125;
+		setarray .@to[0],     60,   130,   999;
+		setarray .@max[0],    15,    10,     6;
+		break;
+	case 5:
+		// the Cash Shop's boosts: Kafra Card, Giant Fly Wing, Life Insurance, Battle Manual, JOB Battle Manual,
+		// Bubble Gum, Field Manual 100%, Convex Mirror, Token of Siegfried, HE Bubble Gum, Gym Pass, Neuralizer;
+		// Megaphone, Gift Box, Old Blue Box, Old Purple Box, Old Card Album
+		setarray .@id[0],  12211, 12212, 12209,  12208,  14592,  12210,  14533, 12214,   7621,  12412,   7776,  12213;
+		setarray .@val[0], 10000, 20000, 50000, 100000, 100000, 150000, 150000, 50000, 300000, 300000, 500000, 500000;
+		setarray .@from[0],    1,     1,    20,     30,     30,     40,     40,    60,     80,     90,     60,     60;
+		setarray .@to[0],    999,   999,   999,    999,    999,    999,    999,   999,    999,    999,    999,    999;
+		setarray .@max[0],    10,    10,     3,      3,      3,      3,      3,     3,      2,      2,      1,      1;
+		setarray .@id[12],  12221,   644,   603,    617,     616;
+		setarray .@val[12], 10000, 20000, 30000, 100000, 1000000;
+		setarray .@from[12],    1,    10,    20,     50,      80;
+		setarray .@to[12],    999,   999,   999,    999,     999;
+		setarray .@max[12],     5,     3,     3,      2,       1;
+		break;
+	}
+	// the ones of the level that this is worth at least one of, in random order
+	for (.@i = 0; .@i < getarraysize(.@id); .@i++)
+		if (.@lv >= .@from[.@i] && .@lv <= .@to[.@i] && .@worth >= .@val[.@i])
+			.@fit[getarraysize(.@fit)] = .@i;
+	if (!getarraysize(.@fit))
+		return 0;
+	.@i = .@fit[callfunc("F_QBRand", getarraysize(.@fit))];
+	@qbr_id = .@id[.@i];
+	@qbr_amt = min(.@max[.@i], .@worth / .@val[.@i]);
+	return 1;
+}
+
+// A reward kind by weight, not getarg(0) (-1: any): healing 20, other consumables 30, zeny 12, ores 8, capture balls
+// 8, Cash Shop boosts 22
+function	script	F_QBPickKind	{
+	setarray .@w[0], 20, 30, 12, 8, 8, 22;
+	if (getarg(0) >= 0)
+		.@w[getarg(0)] = 0;
+	.@r = callfunc("F_QBRand", .@w[0] + .@w[1] + .@w[2] + .@w[3] + .@w[4] + .@w[5]);
+	for (.@k = 0; .@k < 5 && .@r >= .@w[.@k]; .@k++)
+		.@r -= .@w[.@k];
+	return .@k;
+}
+
+// A new card into slot getarg(0) for this character's level: its kind, difficulty, map, target and count, its EXP,
+// and its rewards
+function	script	F_QBNewCard	{
+	freeloop(1); // walks the map table: past rAthena's loop limit, not endless
+	.@s = getarg(0);
+	.@lv = BaseLevel;
+	// the maps of about its level: within 8, wider until there are at least five
+	.@n = getarraysize($@qb_map$);
+	for (.@w = 8; getarraysize(.@near) < 5 && .@w <= 512; .@w *= 2) {
+		deletearray .@near;
+		for (.@i = 0; .@i < .@n; .@i++)
+			if ($@qb_lv[.@i] >= .@lv - .@w && $@qb_lv[.@i] <= .@lv + .@w)
+				.@near[getarraysize(.@near)] = .@i;
+	}
+	.@m = .@near[callfunc("F_QBRand", getarraysize(.@near))];
+
+	// its monsters, by level (id:count:level:base exp)
+	explode(.@mobs$, $@qb_mobs$[.@m], ",");
+	.@nm = getarraysize(.@mobs$);
+	for (.@i = 0; .@i < .@nm; .@i++) {
+		explode(.@f$, .@mobs$[.@i], ":");
+		.@mid[.@i] = atoi(.@f$[0]);
+		.@mcount[.@i] = atoi(.@f$[1]);
+		.@mexp[.@i] = atoi(.@f$[3]);
+		.@all += .@mcount[.@i];
+		.@allexp += .@mcount[.@i] * .@mexp[.@i];
+	}
+	.@avgexp = max(1, .@allexp / max(1, .@all));
+
+	// difficulty: Easy 45%, Normal 35%, Hard 20%
+	.@r = rand(100);
+	.@d = .@r < 45 ? 1 : (.@r < 80 ? 2 : 3);
+	// kind: Hunt, Cull, Elite, Gather (when the map has something to gather); no longer Capture (5): balls are rare and
+	// a slot freed for a quest's reward is a poor trade. One taken before still completes on a catch
+	// and Combo Hunt (7): monsters of one race or element, within ten levels of the character, anywhere
+	// and now and then a Grand Hunt (8)
+	setarray .@weight[1], 30, 25, 15, ($@qb_gather$[.@m] == "" ? 0 : 15), 0, 0, 15, 3;
+	.@r = callfunc("F_QBRand", .@weight[1] + .@weight[2] + .@weight[3] + .@weight[4] + .@weight[7] + .@weight[8]);
+	for (.@t = 1; .@t < 8 && .@r >= .@weight[.@t]; .@t++)
+		.@r -= .@weight[.@t];
+	if (.@t == 8) {
+		callfunc "F_QBGrandCard", .@s;
+		return;
+	}
+	// the target monster: an easy quest one of the weaker half, a hard one the strongest
+	.@pick = .@d == 1 ? callfunc("F_QBRand", (.@nm + 1) / 2) : (.@d == 2 ? callfunc("F_QBRand", .@nm) : max(0, .@nm - 1));
+	.@target = .@mid[.@pick];
+	.@per_kill = .@mexp[.@pick];
+
+	switch (.@t) {
+	case 1: // Hunt
+		setarray .@want[1], 30, 60, 100;
+		.@count = .@want[.@d];
+		if (.@mcount[.@pick] < 15)
+			.@count = max(10, .@count * 6 / 10);
+		.@kills = .@count;
+		break;
+	case 2: // Cull
+		setarray .@want[1], 50, 100, 180;
+		.@count = .@want[.@d];
+		.@kills = .@count;
+		.@target = 0;
+		.@per_kill = .@avgexp;
+		break;
+	case 3: // Elite: each worth ten of its kind
+		.@count = .@d;
+		.@kills = 10 * .@count;
+		break;
+	case 4: // Gather: what about this many kills bring
+		explode(.@g$, $@qb_gather$[.@m], ",");
+		explode(.@f$, .@g$[callfunc("F_QBRand", getarraysize(.@g$))], ":");
+		.@target = atoi(.@f$[0]);
+		setarray .@want[1], 40, 80, 140;
+		.@kills = .@want[.@d];
+		.@count = max(5, .@kills * atoi(.@f$[1]) / 10000);
+		.@per_kill = .@avgexp;
+		break;
+	case 5: // Capture
+		.@count = 1;
+		setarray .@want[1], 20, 35, 60;
+		.@kills = .@want[.@d];
+		break;
+	case 7: // Combo Hunt: one of this map's monsters gives the race (100 + race) or the element (200 + element)
+		.@like = .@mid[callfunc("F_QBRand", .@nm)];
+		.@target = rand(2) ? 100 + getmonsterinfo(.@like, MOB_RACE) : 200 + getmonsterinfo(.@like, MOB_ELEMENT);
+		setarray .@want[1], 40, 80, 140;
+		.@count = .@want[.@d];
+		.@kills = .@count;
+		.@per_kill = .@avgexp;
+		break;
+	}
+
+	// EXP: five times what its monsters are worth at the server's rate, held to a share of the character's level (at
+	// least 8, 14 or 22%, at most 25, 50 or 100% by difficulty): at a high rate five times the kills would be levels
+	setarray .@floor[1], 8, 14, 22;
+	setarray .@cap[1], 25, 50, 100;
+	.@bexp = 5 * .@kills * .@per_kill / 100 * getbattleflag("base_exp_rate");
+	.@bexp = .@bexp < 0 ? 2000000000 : .@bexp;
+	.@bexp = cap_value(.@bexp, getbaseexp_ratio(.@floor[.@d]), getbaseexp_ratio(.@cap[.@d]));
+	// job EXP the same share of the job level as the base EXP is of the base level
+	.@share = 100 * .@bexp / max(1, getbaseexp_ratio(100));
+	.@jexp = getjobexp_ratio(cap_value(.@share, .@floor[.@d], .@cap[.@d]));
+
+	// the rest out of a budget for the level: a Hard quest's rare drop comes on top
+	setarray .@mult[1], 100, 170, 280;
+	.@budget = (200 + .@lv * .@lv * 15) / 100 * .@mult[.@d];
+	.@r1 = 0; .@a1 = 0; .@r2 = 0; .@a2 = 0;
+	if (.@d == 3 && $@qb_rare[.@m]) {
+		.@r1 = $@qb_rare[.@m];
+		.@a1 = 1;
+		.@k = callfunc("F_QBPickKind", -1);
+		if (!callfunc("F_QBBundle", .@budget, .@lv, .@k))
+			callfunc "F_QBBundle", .@budget, .@lv, 2;
+		.@r2 = @qbr_id; .@a2 = @qbr_amt;
+	} else {
+		.@r = rand(100);
+		if (.@r < 3 && .@lv >= 20) {
+			// a costume box (now and then) takes the whole budget
+			.@r1 = 101129;
+			.@a1 = 1;
+		} else if (.@r < 45) {
+			if (!callfunc("F_QBBundle", .@budget, .@lv, callfunc("F_QBPickKind", -1)))
+				callfunc "F_QBBundle", .@budget, .@lv, 2;
+			.@r1 = @qbr_id; .@a1 = @qbr_amt;
+		} else {
+			.@k1 = callfunc("F_QBPickKind", -1);
+			if (!callfunc("F_QBBundle", .@budget / 2, .@lv, .@k1)) {
+				.@k1 = 2;
+				callfunc "F_QBBundle", .@budget / 2, .@lv, 2;
+			}
+			.@r1 = @qbr_id; .@a1 = @qbr_amt;
+			.@k2 = callfunc("F_QBPickKind", .@k1);
+			if (!callfunc("F_QBBundle", .@budget / 2, .@lv, .@k2))
+				callfunc "F_QBBundle", .@budget / 2, .@lv, (.@k1 == 2 ? 0 : 2);
+			.@r2 = @qbr_id; .@a2 = @qbr_amt;
+		}
+	}
+
+	QBC_KIND[.@s] = .@t;
+	QBC_DIFF[.@s] = .@d;
+	setd "QBC_MAP$[" + .@s + "]", .@t == 7 ? "" : $@qb_map$[.@m];
+	QBC_LV[.@s] = .@lv;
+	QBC_TARGET[.@s] = .@target;
+	QBC_COUNT[.@s] = .@count;
+	QBC_BEXP[.@s] = .@bexp;
+	QBC_JEXP[.@s] = .@jexp;
+	QBC_R1[.@s] = .@r1;
+	QBC_A1[.@s] = .@a1;
+	QBC_R2[.@s] = .@r2;
+	QBC_A2[.@s] = .@a2;
+	return;
+}
+
+// One quest for the client: kind|difficulty|map|map name|map level|target|target name|count|base exp|reward 1|amount|
+// reward 2|amount (a reward 0 for none, -1 for zeny); getarg(1) 1 for an active quest (QBA_), else a card (QBC_)
+function	script	F_QBLine	{
+	.@s = getarg(0);
+	.@p$ = getarg(1) ? "QBA_" : "QBC_";
+	.@kind = getd(.@p$ + "KIND[" + .@s + "]");
+	if (!.@kind)
+		return "0";
+	.@map$ = getd(.@p$ + "MAP$[" + .@s + "]");
+	.@target = getd(.@p$ + "TARGET[" + .@s + "]");
+	if (.@kind == 6) {
+		// an instance: its name, and where its entry NPC stands in the map name's place
+		.@q = .@target - 1;
+		.@how$ = "Talk to " + $@qi_npc$[.@q] + " in " + $@qi_where$[.@q] + " (" + $@qi_x[.@q] + ", " + $@qi_y[.@q] + ")";
+		return .@kind + "|3|" + .@map$ + "|" + replacestr(.@how$, "|", "/") + "|" + $@qi_lv[.@q] + "|" + .@target
+			+ "|" + replacestr($@qi_name$[.@q], "|", "/") + "|1|" + getd(.@p$ + "BEXP[" + .@s + "]")
+			+ "|" + getd(.@p$ + "R1[" + .@s + "]") + "|" + getd(.@p$ + "A1[" + .@s + "]")
+			+ "|" + getd(.@p$ + "R2[" + .@s + "]") + "|" + getd(.@p$ + "A2[" + .@s + "]");
+	}
+	if (.@kind >= 7) {
+		// anywhere: monsters within ten levels of the level the card was made for
+		.@lv = getd(.@p$ + "LV[" + .@s + "]");
+		.@what$ = "monsters";
+		if (.@target >= 200) {
+			setarray .@el$[0], "Neutral", "Water", "Earth", "Fire", "Wind", "Poison", "Holy", "Shadow", "Ghost", "Undead";
+			.@what$ = .@el$[.@target - 200] + " monsters";
+		} else if (.@target >= 100) {
+			setarray .@race$[0], "Formless", "Undead", "Brute", "Plant", "Insect", "Fish", "Demon", "Demi-Human", "Angel", "Dragon";
+			.@what$ = .@race$[.@target - 100] + " monsters";
+		}
+		.@how$ = "Any map, monsters Lv " + max(1, .@lv - 10) + "-" + (.@lv + 10);
+		return .@kind + "|" + getd(.@p$ + "DIFF[" + .@s + "]") + "||" + .@how$ + "|" + .@lv + "|" + .@target + "|" + .@what$
+			+ "|" + getd(.@p$ + "COUNT[" + .@s + "]") + "|" + getd(.@p$ + "BEXP[" + .@s + "]")
+			+ "|" + getd(.@p$ + "R1[" + .@s + "]") + "|" + getd(.@p$ + "A1[" + .@s + "]")
+			+ "|" + getd(.@p$ + "R2[" + .@s + "]") + "|" + getd(.@p$ + "A2[" + .@s + "]");
+	}
+	.@i = callfunc("F_QBMapIndex", .@map$);
+	return .@kind + "|" + getd(.@p$ + "DIFF[" + .@s + "]") + "|" + .@map$ + "|" + (.@i < 0 ? .@map$ : $@qb_name$[.@i])
+		+ "|" + (.@i < 0 ? 0 : $@qb_lv[.@i]) + "|" + .@target + "|" + (.@target ? callfunc("F_QBTargetName", .@target, .@kind) : "")
+		+ "|" + getd(.@p$ + "COUNT[" + .@s + "]") + "|" + getd(.@p$ + "BEXP[" + .@s + "]")
+		+ "|" + getd(.@p$ + "R1[" + .@s + "]") + "|" + getd(.@p$ + "A1[" + .@s + "]")
+		+ "|" + getd(.@p$ + "R2[" + .@s + "]") + "|" + getd(.@p$ + "A2[" + .@s + "]");
+}
+
+// Quest getarg(0)'s progress: a Gather quest's is what the bag holds
+function	script	F_QBProgress	{
+	.@s = getarg(0);
+	if (QBA_KIND[.@s] == 4)
+		return min(QBA_COUNT[.@s], countitem(QBA_TARGET[.@s]));
+	return QBA_PROG[.@s];
+}
+
+// The board for the client: [[qbc]]<slot>|<card>, [[qba]]<slot>|<quest>|<progress>, then [[qb]]<seconds to the
+// cards' renewal>|<seconds to the next reroll>|<1 to open the screen> (getarg(0))
+function	script	F_QBSync	{
+	freeloop(1); // walks the map table: past rAthena's loop limit, not endless
+	.@now = gettimetick(2);
+	for (.@s = 0; .@s < 4; .@s++)
+		dispbottom "[[qbc]]" + .@s + "|" + callfunc("F_QBLine", .@s, 0);
+	for (.@s = 0; .@s < 3; .@s++)
+		dispbottom "[[qba]]" + .@s + "|" + callfunc("F_QBLine", .@s, 1) + (QBA_KIND[.@s] ? "|" + callfunc("F_QBProgress", .@s) : "");
+	dispbottom "[[qb]]" + max(0, QB_RENEW_AT - .@now) + "|" + max(0, QB_NEXT_REROLL - .@now) + "|" + getarg(0, 0);
+	return;
+}
+
+// The fourth card: an instance for this character's level (questboard_instances.txt), one of the three nearest below
+// it, its boss to beat. Hard's rewards, and more: an instance is a trip
+function	script	F_QBInstanceCard	{
+	.@s = 3;
+	QBC_KIND[.@s] = 0;
+	for (.@i = 0; .@i < getarraysize($@qi_name$); .@i++)
+		if ($@qi_lv[.@i] <= BaseLevel)
+			.@fit[getarraysize(.@fit)] = .@i;
+	.@n = getarraysize(.@fit);
+	if (!.@n)
+		return;
+	.@i = .@fit[.@n - 1 - callfunc("F_QBRand", min(3, .@n))];
+	.@lv = BaseLevel;
+	QBC_KIND[.@s] = 6;
+	QBC_DIFF[.@s] = 3;
+	setd "QBC_MAP$[" + .@s + "]", $@qi_map$[.@i];
+	QBC_TARGET[.@s] = .@i + 1;
+	QBC_COUNT[.@s] = 1;
+	QBC_BEXP[.@s] = getbaseexp_ratio(60);
+	QBC_JEXP[.@s] = getjobexp_ratio(60);
+	.@budget = (200 + .@lv * .@lv * 15) / 100 * 400;
+	.@k1 = callfunc("F_QBPickKind", -1);
+	if (!callfunc("F_QBBundle", .@budget / 2, .@lv, .@k1)) {
+		.@k1 = 2;
+		callfunc "F_QBBundle", .@budget / 2, .@lv, 2;
+	}
+	QBC_R1[.@s] = @qbr_id; QBC_A1[.@s] = @qbr_amt;
+	if (!callfunc("F_QBBundle", .@budget / 2, .@lv, callfunc("F_QBPickKind", .@k1)))
+		callfunc "F_QBBundle", .@budget / 2, .@lv, (.@k1 == 2 ? 0 : 2);
+	QBC_R2[.@s] = @qbr_id; QBC_A2[.@s] = @qbr_amt;
+	return;
+}
+
+// A Grand Hunt into card getarg(0) (a rare draw of a regular card): a great many monsters within ten levels of the
+// character, anywhere, for a great reward
+function	script	F_QBGrandCard	{
+	.@s = getarg(0);
+	.@lv = BaseLevel;
+	QBC_KIND[.@s] = 8;
+	QBC_DIFF[.@s] = 3;
+	setd "QBC_MAP$[" + .@s + "]", "";
+	QBC_LV[.@s] = .@lv;
+	QBC_TARGET[.@s] = 0;
+	QBC_COUNT[.@s] = 600;
+	// a level and a half (the ratio commands go to 100%)
+	QBC_BEXP[.@s] = getbaseexp_ratio(100) / 2 * 3;
+	QBC_JEXP[.@s] = getjobexp_ratio(100) / 2 * 3;
+	// a costume box, and a big bundle of the Cash Shop's boosts (else of anything)
+	QBC_R1[.@s] = 101129;
+	QBC_A1[.@s] = 1;
+	.@budget = (200 + .@lv * .@lv * 15) / 100 * 600;
+	if (!callfunc("F_QBBundle", .@budget, .@lv, 5))
+		callfunc "F_QBBundle", .@budget, .@lv, callfunc("F_QBPickKind", -1);
+	QBC_R2[.@s] = @qbr_id; QBC_A2[.@s] = @qbr_amt;
+	return;
+}
+
+// Where a quest is, for messages: its map, its instance, or anywhere
+function	script	F_QBWhere	{
+	.@p$ = getarg(1) ? "QBA_" : "QBC_";
+	.@kind = getd(.@p$ + "KIND[" + getarg(0) + "]");
+	if (.@kind == 6)
+		return $@qi_name$[getd(.@p$ + "TARGET[" + getarg(0) + "]") - 1];
+	if (.@kind >= 7)
+		return "any map";
+	return getd(.@p$ + "MAP$[" + getarg(0) + "]");
+}
+
+// The cards, all four new
+function	script	F_QBReroll	{
+	freeloop(1); // walks the map table: past rAthena's loop limit, not endless
+	for (.@s = 0; .@s < 3; .@s++)
+		callfunc "F_QBNewCard", .@s;
+	callfunc "F_QBInstanceCard";
+	QBC_KIND[4] = 0; // a fifth card there was once
+	return;
+}
+
+// Active quest getarg(0) done: its EXP and rewards, and it is off the list
+function	script	F_QBComplete	{
+	.@s = getarg(0);
+	if (QBA_KIND[.@s] == 4)
+		delitem QBA_TARGET[.@s], QBA_COUNT[.@s];
+	getexp2 QBA_BEXP[.@s], QBA_JEXP[.@s];
+	setarray .@r[0], QBA_R1[.@s], QBA_R2[.@s];
+	setarray .@a[0], QBA_A1[.@s], QBA_A2[.@s];
+	for (.@i = 0; .@i < 2; .@i++) {
+		if (.@r[.@i] == -1)
+			Zeny += .@a[.@i];
+		else if (.@r[.@i] > 0)
+			getitem .@r[.@i], .@a[.@i];
+	}
+	specialeffect2 EF_ANGEL2;
+	dispbottom "Quest complete: " + callfunc("F_QBKind", QBA_KIND[.@s]) + " on " + callfunc("F_QBWhere", .@s, 1) + ". Rewards received.";
+	callfunc "F_QBClear", .@s;
+	return;
+}
+
+// Active quest getarg(0) off the list (its elites gone too)
+function	script	F_QBClear	{
+	.@s = getarg(0);
+	if (getd("@qb_elite" + .@s) && unitexists(getd("@qb_elite" + .@s)))
+		unitkill getd("@qb_elite" + .@s);
+	setd "@qb_elite" + .@s, 0;
+	QBA_KIND[.@s] = 0;
+	QBA_PROG[.@s] = 0;
+	return;
+}
+
+// A quest goal reached: getarg(0) is the kind (1 a kill, 5 a catch), getarg(1) the monster, getarg(2) 1 for a kill on
+// this map. Every active quest it counts for moves on; a finished one completes
+function	script	F_QBCount	{
+	freeloop(1); // walks the map table: past rAthena's loop limit, not endless
+	.@kind = getarg(0);
+	.@mob = getarg(1);
+	.@here$ = strcharinfo(3);
+	for (.@s = 0; .@s < 3; .@s++) {
+		.@k = QBA_KIND[.@s];
+		if (!.@k || QBA_PROG[.@s] >= QBA_COUNT[.@s])
+			continue;
+		.@on_map = getd("QBA_MAP$[" + .@s + "]") == .@here$;
+		// an Instance: a boss (an MVP) falling on one of the instance's maps, the character's or its party's
+		if (.@kind == 1 && .@k == 6 && getmonsterinfo(.@mob, MOB_MVPEXP) > 0) {
+			explode(.@maps$, $@qi_maps$[QBA_TARGET[.@s] - 1], ",");
+			setarray .@iid[0], instance_id(IM_PARTY), instance_id(IM_CHAR);
+			for (.@j = 0; .@j < 2 && !.@done; .@j++)
+				for (.@m = 0; .@iid[.@j] && .@m < getarraysize(.@maps$) && !.@done; .@m++)
+					.@done = instance_mapname(.@maps$[.@m], .@iid[.@j]) == .@here$;
+			if (.@done) {
+				.@done = 0;
+				QBA_PROG[.@s] = 1;
+				.@moved = 1;
+				callfunc "F_QBComplete", .@s;
+			}
+			continue;
+		}
+		// a Combo or Grand Hunt: a monster within ten levels of the card's level, of the race or element asked
+		if (.@kind == 1 && .@k >= 7) {
+			.@mlv = getmonsterinfo(.@mob, MOB_LV);
+			.@t = QBA_TARGET[.@s];
+			if (.@mlv < QBA_LV[.@s] - 10 || .@mlv > QBA_LV[.@s] + 10
+				|| (.@t >= 200 && getmonsterinfo(.@mob, MOB_ELEMENT) != .@t - 200)
+				|| (.@t >= 100 && .@t < 200 && getmonsterinfo(.@mob, MOB_RACE) != .@t - 100))
+				continue;
+			QBA_PROG[.@s]++;
+			.@moved = 1;
+			if (QBA_PROG[.@s] >= QBA_COUNT[.@s])
+				callfunc "F_QBComplete", .@s;
+			continue;
+		}
+		// a Hunt's monster counts wherever it falls, a Cull's kills on its map
+		if ((.@kind == 1 && .@k == 1 && .@mob == QBA_TARGET[.@s])
+			|| (.@kind == 1 && .@k == 2 && .@on_map)
+			|| (.@kind == 5 && .@k == 5 && .@mob == QBA_TARGET[.@s])) {
+			QBA_PROG[.@s]++;
+			.@moved = 1;
+			if (QBA_PROG[.@s] >= QBA_COUNT[.@s])
+				callfunc "F_QBComplete", .@s;
+		}
+	}
+	if (.@moved)
+		callfunc "F_QBSync";
+	return;
+}
+
+// capture.txt's OnCaught: a catch for a Capture quest
+function	script	F_QBCaught	{
+	callfunc "F_QBCount", 5, getarg(0), 0;
+	return;
+}
+
+// A town's board (questboard_maps.txt copies it into each): the client's Board screen opens. Only the talk: a copy's
+// own events would run once for every town
+-	script	QuestBoard	-1,{
+	freeloop(1);
+	callfunc "F_QBRenewCheck";
+	callfunc "F_QBSync", 1;
+	end;
+}
+
+// The board's events: @board, kills, elites, the bag
+-	script	QuestBoardSystem	-1,{
+	end;
+
+OnInit:
+	bindatcmd "board", strnpcinfo(3) + "::OnCommand", 0, 99;
+	bindatcmd "boardreset", strnpcinfo(3) + "::OnReset", 60, 99;
+	end;
+
+// GM: new cards and a free reroll, and the Board screen opens (docs/debug-commands.md)
+OnReset:
+	freeloop(1);
+	QB_RENEW_AT = 0;
+	QB_NEXT_REROLL = 0;
+	callfunc "F_QBRenewCheck";
+	dispbottom "Quest board: new cards, reroll ready.";
+	callfunc "F_QBSync", 1;
+	end;
+
+OnPCLoginEvent:
+	freeloop(1);
+	callfunc "F_QBRenewCheck";
+	callfunc "F_QBSync";
+	addtimer 2000, strnpcinfo(3) + "::OnTick";
+	end;
+
+// @board list | take <1-4> | reroll | abort <1-3>
+OnCommand:
+	freeloop(1);
+	.@do$ = .@atcmd_parameters$[0];
+	.@s = atoi(.@atcmd_parameters$[1]) - 1;
+	.@now = gettimetick(2);
+	if (callfunc("F_QBRenewCheck"))
+		dispbottom "The Quest Board has new quests.";
+	if (.@do$ == "take") {
+		if (.@s < 0 || .@s > 3 || !QBC_KIND[.@s])
+			dispbottom "That card is gone.";
+		else {
+			.@a = 0;
+			while (.@a < 3 && QBA_KIND[.@a])
+				.@a++;
+			if (.@a >= 3)
+				dispbottom "You already have three quests: finish or abort one first.";
+			else {
+				QBA_KIND[.@a] = QBC_KIND[.@s];
+				QBA_DIFF[.@a] = QBC_DIFF[.@s];
+				setd "QBA_MAP$[" + .@a + "]", getd("QBC_MAP$[" + .@s + "]");
+				QBA_TARGET[.@a] = QBC_TARGET[.@s];
+				QBA_COUNT[.@a] = QBC_COUNT[.@s];
+				QBA_BEXP[.@a] = QBC_BEXP[.@s];
+				QBA_JEXP[.@a] = QBC_JEXP[.@s];
+				QBA_R1[.@a] = QBC_R1[.@s];
+				QBA_A1[.@a] = QBC_A1[.@s];
+				QBA_R2[.@a] = QBC_R2[.@s];
+				QBA_A2[.@a] = QBC_A2[.@s];
+				QBA_PROG[.@a] = 0;
+				QBA_LV[.@a] = QBC_LV[.@s];
+				// the card is taken: its place stays empty until the board renews
+				QBC_KIND[.@s] = 0;
+				dispbottom "Quest taken: " + callfunc("F_QBKind", QBA_KIND[.@a]) + " on " + callfunc("F_QBWhere", .@a, 1) + ".";
+			}
+		}
+	} else if (.@do$ == "reroll") {
+		if (QB_NEXT_REROLL > .@now)
+			dispbottom "Your next free reroll is in " + ((QB_NEXT_REROLL - .@now + 59) / 60) + " min.";
+		else {
+			callfunc "F_QBReroll";
+			QB_NEXT_REROLL = .@now + callfunc("F_QBWaits", 1);
+			QB_RENEW_AT = .@now + callfunc("F_QBWaits", 0);
+		}
+	} else if (.@do$ == "abort") {
+		if (.@s < 0 || .@s > 2 || !QBA_KIND[.@s])
+			dispbottom "There is no such quest.";
+		else {
+			dispbottom "Quest aborted: " + callfunc("F_QBKind", QBA_KIND[.@s]) + " on " + callfunc("F_QBWhere", .@s, 1) + ".";
+			callfunc "F_QBClear", .@s;
+		}
+	} else if (.@do$ != "list")
+		dispbottom "Usage: @board list | take <1-4> | reroll | abort <1-3>";
+	callfunc "F_QBSync";
+	end;
+
+OnNPCKillEvent:
+	freeloop(1);
+	callfunc "F_QBCount", 1, killedrid, 1;
+	end;
+
+// An Elite quest's elite fell (its killer attached)
+OnEliteDown:
+	freeloop(1);
+	for (.@s = 0; .@s < 3; .@s++) {
+		if (QBA_KIND[.@s] != 3 || getd("@qb_elite" + .@s) != killedgid)
+			continue;
+		setd "@qb_elite" + .@s, 0;
+		QBA_PROG[.@s]++;
+		if (QBA_PROG[.@s] >= QBA_COUNT[.@s])
+			callfunc "F_QBComplete", .@s;
+		callfunc "F_QBSync";
+	}
+	end;
+
+// Every 2 s for each player: an Elite quest's next elite on its map, a Gather quest done
+OnTick:
+	freeloop(1);
+	if (callfunc("F_QBRenewCheck")) {
+		dispbottom "The Quest Board has new quests.";
+		.@changed = 1;
+	}
+	.@here$ = strcharinfo(3);
+	for (.@s = 0; .@s < 3; .@s++) {
+		if (QBA_KIND[.@s] == 3 && getd("QBA_MAP$[" + .@s + "]") == .@here$ && QBA_PROG[.@s] < QBA_COUNT[.@s]) {
+			.@gid = getd("@qb_elite" + .@s);
+			if (!.@gid || !unitexists(.@gid)) {
+				.@mob = QBA_TARGET[.@s];
+				monster .@here$, 0, 0, "Elite " + getmonsterinfo(.@mob, MOB_NAME), .@mob, 1, strnpcinfo(3) + "::OnEliteDown";
+				.@gid = $@mobid[0];
+				// ten times its HP, half again its attack
+				.@hp = min(2000000000, getmonsterinfo(.@mob, MOB_MAXHP) * 10);
+				setunitdata .@gid, UMOB_MAXHP, .@hp;
+				setunitdata .@gid, UMOB_HP, .@hp;
+				setunitdata .@gid, UMOB_ATKMIN, getmonsterinfo(.@mob, MOB_ATKMIN) * 3 / 2;
+				setunitdata .@gid, UMOB_ATKMAX, getmonsterinfo(.@mob, MOB_ATKMAX) * 3 / 2;
+				setd "@qb_elite" + .@s, .@gid;
+				dispbottom "An Elite " + getmonsterinfo(.@mob, MOB_NAME) + " is somewhere on this map.";
+			}
+		}
+		if (QBA_KIND[.@s] == 4) {
+			.@have = callfunc("F_QBProgress", .@s);
+			if (.@have >= QBA_COUNT[.@s])
+				callfunc "F_QBComplete", .@s;
+			if (.@have != getd("@qb_had" + .@s)) {
+				setd "@qb_had" + .@s, .@have;
+				.@changed = 1;
+			}
+		}
+	}
+	if (.@changed)
+		callfunc "F_QBSync";
+	addtimer 2000, strnpcinfo(3) + "::OnTick";
+	end;
+}
