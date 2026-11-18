@@ -1,0 +1,25 @@
+//===== rAthena Script =======================================
+//= Appraiser
+//===== Description: =========================================
+//= Identifies everything unidentified in the character's
+//= inventory at once, free, so no one carries Magnifiers.
+//= Stands beside every Tool Dealer, and by the Kafra spot of
+//= each town with no Tool Dealer out on its streets:
+//= npc/custom/appraiser_points.txt (scripts/gen-appraisers.py).
+//============================================================
+
+-	script	Appraiser	-1,{
+	mes "[Appraiser]";
+	.@n = identifyall(false);
+	if (.@n < 1) {
+		mes "Nothing in your bag needs appraising. Bring me whatever you find out there!";
+		close;
+	}
+	mes "You carry " + .@n + " unidentified item" + (.@n > 1 ? "s" : "") + ". I'll appraise all of it, free of charge.";
+	if (select("Appraise all:Not now") == 2)
+		close;
+	identifyall;
+	mes "[Appraiser]";
+	mes "There: everything you carry is identified.";
+	close;
+}
