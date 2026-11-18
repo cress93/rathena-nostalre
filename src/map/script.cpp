@@ -9714,7 +9714,7 @@ BUILDIN_FUNC(getequippercentrefinery)
 			return SCRIPT_CMD_SUCCESS;
 		}
 
-		script_pushint( st, cost->chance / 100 );
+		script_pushint( st, pc_album_refine_chance( sd, cost->chance ) / 100 );
 	}
 	else
 		script_pushint(st,0);

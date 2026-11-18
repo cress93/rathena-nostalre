@@ -5702,6 +5702,8 @@ int32 pc_modifybuyvalue(const map_session_data* sd, int32 orig_value )
 	if((skill=pc_checkskill(sd,RG_COMPULSION))>0)	 // rogue discount
 		rate2 = 5+skill*4;
 	if(rate1 < rate2) rate1 = rate2;
+	// nostalRE: the Card Album's discount, on top
+	rate1 = std::min( rate1 + pc_album_reward( sd, "#ALBUM_DISC" ), 60 );
 	if(rate1)
 		val = (int32)((double)orig_value*(double)(100-rate1)/100.);
 	if(val < battle_config.min_shop_buy)
@@ -5718,6 +5720,8 @@ int32 pc_modifysellvalue( const map_session_data* sd, int32 orig_value )
 	int32 skill,val = orig_value,rate = 0;
 	if((skill=pc_checkskill(sd,MC_OVERCHARGE))>0)	//OverCharge
 		rate = 5+skill*2-((skill==10)? 1:0);
+	// nostalRE: the Card Album's overcharge, on top
+	rate = std::min( rate + pc_album_reward( sd, "#ALBUM_OC" ), 60 );
 	if(rate)
 		val = (int32)((double)orig_value*(double)(100+rate)/100.);
 	if (val < battle_config.min_shop_sell)
@@ -11507,6 +11511,23 @@ bool pc_setregstr(map_session_data* sd, int64 reg, const char* str)
  * - '#type' (permanent numeric account reg)
  * - '##type' (permanent numeric account reg2)
  **/
+/// nostalRE: one of the Card Album's rewards, from its account variable (npc/custom/cardalbum.txt sets them)
+int32 pc_album_reward( const map_session_data* sd, const char* var ){
+	if( sd == nullptr || !sd->vars_ok ){
+		return 0;
+	}
+	return static_cast<int32>( cap_value( pc_readaccountreg( sd, add_str( var ) ), 0, 100000 ) );
+}
+
+/// nostalRE: a refine chance (in hundredths of a percent) with the Card Album's points added; a sure one or an
+/// impossible one stays as it is
+int32 pc_album_refine_chance( const map_session_data* sd, int32 chance ){
+	if( chance <= 0 || chance >= 10000 ){
+		return chance;
+	}
+	return std::min( 10000, chance + pc_album_reward( sd, "#ALBUM_REFINE" ) * 100 );
+}
+
 int64 pc_readregistry( const map_session_data* sd , int64 reg )
 {
 	struct script_reg_num *p = nullptr;

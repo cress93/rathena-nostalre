@@ -83,6 +83,11 @@ files we do not use. Our changes carry a `nostalRE` comment:
   (`JobProfile:`, `src/map/population_engine/config/population_spawn_db.cpp`).
 - `population_engine_respawn_ms` (5000): how long a dead shell stays down; the app
   picks 5 s to 2 min.
+- The Card Album's rewards (`npc/custom/cardalbum.txt`) are account variables the source reads:
+  `#ALBUM_DISC` and `#ALBUM_OC` add to the shop price skills (`pc_modifybuyvalue`, `pc_modifysellvalue`),
+  `#ALBUM_WEIGHT` to max weight (`status_calc_weight`), `#ALBUM_REFINE` percentage points to every refine chance
+  that is neither sure nor impossible (`pc_album_refine_chance`: the refine window, refine NPCs'
+  `getequippercentrefinery`, Weapon Refine).
 - `instance_mob_hp_rate` 35 and `instance_mob_atk_rate` 60 (`conf/battle/monster.conf`): monsters in an
   instance have that share of their HP and attack (`status_calc_mob_`), so a party's instance is one player's.
 - Party companions are mortal: one that dies whispers its owner, leaves the party

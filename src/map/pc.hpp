@@ -1574,6 +1574,9 @@ bool pc_setreg(map_session_data *sd, int64 reg, int64 val);
 char *pc_readregstr( const map_session_data* sd, int64 reg );
 bool pc_setregstr(map_session_data *sd, int64 reg, const char *str);
 int64 pc_readregistry( const map_session_data* sd, int64 reg );
+// nostalRE: the Card Album's rewards (npc/custom/cardalbum.txt keeps them in #ALBUM_ account variables)
+int32 pc_album_reward( const map_session_data* sd, const char* var );
+int32 pc_album_refine_chance( const map_session_data* sd, int32 chance );
 bool pc_setregistry(map_session_data *sd, int64 reg, int64 val);
 char *pc_readregistry_str( const map_session_data* sd, int64 reg );
 bool pc_setregistry_str(map_session_data *sd, int64 reg, const char *val);

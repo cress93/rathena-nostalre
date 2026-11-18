@@ -3703,6 +3703,8 @@ bool status_calc_weight(map_session_data *sd, enum e_status_calc_weight_opt flag
 	if (flag&CALCWT_MAXBONUS) {
 		// Skill/Status bonus weight increases
 		sd->max_weight += sd->add_max_weight; // From bAddMaxWeight
+		// nostalRE: the Card Album's weight, in the weight the player reads (a tenth of this one)
+		sd->max_weight += pc_album_reward( sd, "#ALBUM_WEIGHT" ) * 10;
 		if ((skill = pc_checkskill(sd, MC_INCCARRY)) > 0)
 			sd->max_weight += 2000 * skill;
 		if (pc_isriding(sd) && pc_checkskill(sd, KN_RIDING) > 0)

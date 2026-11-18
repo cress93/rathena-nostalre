@@ -10649,7 +10649,7 @@ void skill_weaponrefine( map_session_data& sd, int32 idx ){
 				return;
 			}
 
-			int32 per = ( cost->chance / 100 );
+			int32 per = ( pc_album_refine_chance( &sd, cost->chance ) / 100 );
 			if( sd.class_&JOBL_THIRD )
 				per += 10;
 			else

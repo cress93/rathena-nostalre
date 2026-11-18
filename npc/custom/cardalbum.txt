@@ -1,0 +1,190 @@
+//===== rAthena Script =======================================
+//= Card Album
+//===== Description: =========================================
+//= Every card a monster of the world drops has a place in the
+//= album (npc/custom/cardalbum_table.txt, from
+//= scripts/gen-card-album.py), shared by the account's
+//= characters: a card is in it once a character of the account
+//= has had one (in the bag, a cart, storage, or in a slot of
+//= gear carried), and stays in it. The card itself is kept.
+//=
+//= The rewards are no stats: one at each count of cards, one
+//= for each region whose cards (bosses' aside) are all in. They
+//= add up into account variables the server reads:
+//=   #ALBUM_DISC    % off buying from NPCs (pc_modifybuyvalue)
+//=   #ALBUM_OC      % more selling to NPCs (pc_modifysellvalue)
+//=   #ALBUM_WEIGHT  max weight (status_calc_weight)
+//=   #ALBUM_TRAVEL  % off Kafra teleports (F_WayFee)
+//=   #ALBUM_BOARD   % off the quest board's waits (F_QBWaits)
+//=   #ALBUM_REFINE  refine chance in % points
+//=                  (pc_album_refine_chance)
+//= #CA_<card id> is 1 for a card in the album.
+//=
+//= The client's Album screen reads the album from "[[alb]]"
+//= lines it keeps out of the chat: "[[alb]]=" starts it over,
+//= "[[alb]]+<id>,<id>,..." adds cards. @album sends it again
+//= and lists the rewards; @album sync only sends it.
+//============================================================
+
+// A reward's words: kind getarg(0), amount getarg(1)
+function	script	F_CAReward	{
+	switch (getarg(0)) {
+	case 1: return "Shop discount +" + getarg(1) + "%";
+	case 2: return "Overcharge +" + getarg(1) + "%";
+	case 3: return "Max weight +" + getarg(1);
+	case 4: return "Kafra teleports " + getarg(1) + "% cheaper";
+	case 5: return "Quest board waits " + getarg(1) + "% shorter";
+	case 6: return "Refine chance +" + getarg(1) + "%";
+	}
+	return "";
+}
+
+// The rewards earned, into the #ALBUM_ variables, from @ca_count and @ca_rhave[]
+function	script	F_CARewards	{
+	setarray .@sum[1], 0, 0, 0, 0, 0, 0;
+	for (.@i = 0; .@i < getarraysize($@ca_mcount); .@i++)
+		if (@ca_count >= $@ca_mcount[.@i])
+			.@sum[$@ca_mkind[.@i]] += $@ca_mval[.@i];
+	for (.@r = 0; .@r < getarraysize($@ca_rneed); .@r++)
+		if (@ca_rhave[.@r] >= $@ca_rneed[.@r])
+			.@sum[$@ca_rkind[.@r]] += $@ca_rval[.@r];
+	.@weight = (#ALBUM_WEIGHT != .@sum[3]);
+	#ALBUM_DISC = .@sum[1];
+	#ALBUM_OC = .@sum[2];
+	#ALBUM_WEIGHT = .@sum[3];
+	#ALBUM_TRAVEL = min(100, .@sum[4]);
+	#ALBUM_BOARD = min(90, .@sum[5]);
+	#ALBUM_REFINE = .@sum[6];
+	if (.@weight || getarg(0, 0))
+		recalculatestat;
+	return;
+}
+
+// Card getarg(0) into the album, if it has a place and is not in yet; getarg(1) true: no word of it in the chat
+// (the login's sweep, which says how many at the end). True when it went in
+function	script	F_CAAdd	{
+	.@card = getarg(0);
+	.@at = $@ca_at[.@card];
+	if (!.@at || getd("#CA_" + .@card))
+		return 0;
+	setd "#CA_" + .@card, 1;
+	.@i = .@at - 1;
+	.@r = $@ca_region[.@i];
+	@ca_count++;
+	if (!$@ca_boss[.@i])
+		@ca_rhave[.@r]++;
+	dispbottom "[[alb]]+" + .@card;
+	if (getarg(1, 0))
+		return 1;
+	.@total = getarraysize($@ca_card);
+	dispbottom "Card Album: " + getitemname(.@card) + " (" + @ca_count + "/" + .@total + ")", 0x7FD7FF;
+	for (.@m = 0; .@m < getarraysize($@ca_mcount); .@m++)
+		if ($@ca_mcount[.@m] == @ca_count)
+			dispbottom "Card Album: " + @ca_count + " cards! " + callfunc("F_CAReward", $@ca_mkind[.@m], $@ca_mval[.@m]), 0xFFD54F;
+	if (!$@ca_boss[.@i] && @ca_rhave[.@r] == $@ca_rneed[.@r])
+		dispbottom "Card Album: " + $@ca_rname$[.@r] + " complete! " + callfunc("F_CAReward", $@ca_rkind[.@r], $@ca_rval[.@r]), 0xFFD54F;
+	callfunc "F_CARewards";
+	return 1;
+}
+
+// The cards in the bag, the gear's slots among them, into the album; getarg(0) true: quietly
+function	script	F_CAScanBag	{
+	.@n = 0;
+	getinventorylist;
+	for (.@i = 0; .@i < @inventorylist_count; .@i++) {
+		.@n += callfunc("F_CAAdd", @inventorylist_id[.@i], getarg(0, 0));
+		setarray .@slot[0], @inventorylist_card1[.@i], @inventorylist_card2[.@i], @inventorylist_card3[.@i], @inventorylist_card4[.@i];
+		for (.@s = 0; .@s < 4; .@s++)
+			if (.@slot[.@s] > 0)
+				.@n += callfunc("F_CAAdd", .@slot[.@s], getarg(0, 0));
+	}
+	return .@n;
+}
+
+// The cards in storage and the cart (each card of the album asked after), into the album; getarg(0) true: quietly
+function	script	F_CAScanKept	{
+	freeloop(1);
+	.@n = 0;
+	.@cart = checkcart();
+	for (.@i = 0; .@i < getarraysize($@ca_card); .@i++) {
+		.@card = $@ca_card[.@i];
+		if (getd("#CA_" + .@card))
+			continue;
+		if (storagecountitem(.@card) > 0 || (.@cart && cartcountitem(.@card) > 0))
+			.@n += callfunc("F_CAAdd", .@card, getarg(0, 0));
+	}
+	freeloop(0);
+	return .@n;
+}
+
+// The album as the client keeps it: started over, then its cards
+function	script	F_CASend	{
+	freeloop(1);
+	dispbottom "[[alb]]=";
+	.@line$ = "";
+	.@k = 0;
+	for (.@i = 0; .@i < getarraysize($@ca_card); .@i++) {
+		if (!getd("#CA_" + $@ca_card[.@i]))
+			continue;
+		.@line$ += (.@k ? "," : "") + $@ca_card[.@i];
+		if (++.@k == 30) {
+			dispbottom "[[alb]]+" + .@line$;
+			.@line$ = "";
+			.@k = 0;
+		}
+	}
+	if (.@k)
+		dispbottom "[[alb]]+" + .@line$;
+	freeloop(0);
+	return;
+}
+
+-	script	CardAlbum	-1,{
+// The count and each region's from the account's variables, what the character carries and keeps added
+// quietly, the rewards set, the client told
+OnPCLoginEvent:
+	freeloop(1);
+	@ca_count = 0;
+	deletearray @ca_rhave;
+	for (.@i = 0; .@i < getarraysize($@ca_card); .@i++) {
+		if (!getd("#CA_" + $@ca_card[.@i]))
+			continue;
+		@ca_count++;
+		if (!$@ca_boss[.@i])
+			@ca_rhave[$@ca_region[.@i]]++;
+	}
+	freeloop(0);
+	.@new = callfunc("F_CAScanBag", 1) + callfunc("F_CAScanKept", 1);
+	callfunc "F_CARewards", 1;
+	callfunc "F_CASend";
+	if (.@new)
+		dispbottom "Card Album: " + .@new + " card" + (.@new > 1 ? "s" : "") + " you have added (" + @ca_count + "/" + getarraysize($@ca_card) + ")", 0x7FD7FF;
+	@ca_tick = 0;
+	addtimer 3000, strnpcinfo(3) + "::OnScan";
+	end;
+
+// Every 3 s the bag, every minute storage and the cart too
+OnScan:
+	callfunc "F_CAScanBag";
+	if (++@ca_tick % 20 == 0)
+		callfunc "F_CAScanKept";
+	addtimer 3000, strnpcinfo(3) + "::OnScan";
+	end;
+
+OnInit:
+	bindatcmd "album", strnpcinfo(3) + "::OnAtcommand";
+	end;
+
+// @album: the album again for the client, and the rewards in the chat; @album sync: the album only (the
+// client's Album screen asks so on opening)
+OnAtcommand:
+	callfunc "F_CASend";
+	if (.@atcmd_parameters$[0] == "sync")
+		end;
+	dispbottom "Card Album: " + @ca_count + "/" + getarraysize($@ca_card) + " cards", 0x7FD7FF;
+	setarray .@kind$[1], "#ALBUM_DISC", "#ALBUM_OC", "#ALBUM_WEIGHT", "#ALBUM_TRAVEL", "#ALBUM_BOARD", "#ALBUM_REFINE";
+	for (.@k = 1; .@k <= 6; .@k++)
+		if (getd(.@kind$[.@k]))
+			dispbottom "  " + callfunc("F_CAReward", .@k, getd(.@kind$[.@k])), 0x7FD7FF;
+	end;
+}
