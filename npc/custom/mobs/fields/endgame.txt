@@ -1,0 +1,72 @@
+//===== rAthena Script =======================================
+//= Endgame fields: Muspelheim and Isgard
+//===== Description: =========================================
+//= kRO's level 200+ fields that rAthena has the maps of but
+//= no monsters, NPCs or warps for: their own spawns, and a guide
+//= in Prontera that takes a character of level 200 or more
+//= there, since no portal leads in. The monsters are rAthena's
+//= own of about the level kRO's world map suggests for each
+//= field (the volcano's, the Amicitia chimeras, and the ones
+//= of level 213 to 215 no field had). Only fields the server has
+//= in its map cache: Muspelheim's other maps are not there.
+//= scripts/map-monsters.py and gen-questboard.py read the
+//= spawns, for the world map and the quest board.
+//============================================================
+
+// Muspelheim (210): the volcano's
+mu_fild01	monster	Lava Toad	21300,45
+mu_fild01	monster	Hot Molar	21298,45
+mu_fild01	monster	Volcaring	21299,15
+mu_fild01	monster	Spark	21297,15
+
+// Isgard, along Jormungandr (208 to 244)
+jor_tail	monster	Venedi	20933,40
+jor_tail	monster	Giant Caput	20929,35
+jor_back1	monster	Dolorian	20930,40
+jor_back1	monster	Deadre	20932,35
+jor_back1	monster	Venedi	20933,20
+jor_back2	monster	Brutal Murderer	20937,40
+jor_back2	monster	Ghost Cube	20938,35
+jor_back2	monster	Deadre	20932,20
+jor_back3	monster	Plagarion	20931,40
+jor_back3	monster	Gan Ceann	20935,35
+jor_back3	monster	Brutal Murderer	20937,20
+jor_back4	monster	Amitera	20924,30
+jor_back4	monster	Litus	20925,30
+jor_back4	monster	Plagarion	20931,20
+jor_back5	monster	Fillia	20926,30
+jor_back5	monster	Vanilaqus	20927,30
+jor_back5	monster	Gan Ceann	20935,20
+jor_twice	monster	Amitera	20924,25
+jor_twice	monster	Litus	20925,25
+jor_twice	monster	Fillia	20926,25
+jor_twice	monster	Vanilaqus	20927,25
+jor_back6	monster	Lavaeter	20920,25
+jor_back6	monster	Fulgor	20921,25
+jor_back6	monster	Napeo	20922,25
+jor_back6	monster	Galensis	20923,25
+
+// the way there, by the quest board
+prontera,147,187,4	script	Expedition Guide#endgame	4_M_JOB_KNIGHT2,{
+	mes "[Expedition Guide]";
+	if (BaseLevel < 200) {
+		mes "Past Midgard lie Muspelheim's fire and Isgard, on the World Serpent's back.";
+		mes "Come back at level 200, and I will take you there.";
+		close;
+	}
+	mes "Where to? The monsters there are as strong as anything in the world.";
+	for (.@i = 0; .@i < getarraysize(.map$); .@i++)
+		.@menu$ += .name$[.@i] + " (Lv " + .lv[.@i] + "):";
+	.@i = select(.@menu$ + "Not now") - 1;
+	if (.@i == getarraysize(.map$))
+		close;
+	close2;
+	warp .map$[.@i], 0, 0;
+	end;
+
+OnInit:
+	setarray .map$, "mu_fild01", "jor_tail", "jor_back1", "jor_back2", "jor_back3", "jor_back4", "jor_back5", "jor_twice", "jor_back6";
+	setarray .name$, "Muspelheim", "Serpent's Tail", "Serpent's Back 1", "Serpent's Back 2", "Serpent's Back 3", "Serpent's Back 4", "Serpent's Back 5", "Serpent's Coil", "Serpent's Back 6";
+	setarray .lv, 210, 208, 211, 212, 213, 220, 220, 222, 244;
+	end;
+}
